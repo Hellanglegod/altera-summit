@@ -29,26 +29,29 @@ export function StarfieldCanvas({
   showConstellations = true,
 }: StarfieldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const starsRef = useRef<Star[]>([]);
   const constellationsRef = useRef<Constellation[]>([]);
   const mouseRef = useRef({ x: 0, y: 0 });
 
-  const initStars = useCallback((width: number, height: number) => {
-    const stars: Star[] = [];
-    for (let i = 0; i < starCount; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        size: Math.random() * 2 + 0.5,
-        opacity: Math.random() * 0.5 + 0.3,
-        speed: Math.random() * 0.02 + 0.01,
-        twinkleSpeed: Math.random() * 0.02 + 0.01,
-        twinkleOffset: Math.random() * Math.PI * 2,
-      });
-    }
-    starsRef.current = stars;
-  }, [starCount]);
+  const initStars = useCallback(
+    (width: number, height: number) => {
+      const stars: Star[] = [];
+      for (let i = 0; i < starCount; i++) {
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: Math.random() * 2 + 0.5,
+          opacity: Math.random() * 0.5 + 0.3,
+          speed: Math.random() * 0.02 + 0.01,
+          twinkleSpeed: Math.random() * 0.02 + 0.01,
+          twinkleOffset: Math.random() * Math.PI * 2,
+        });
+      }
+      starsRef.current = stars;
+    },
+    [starCount],
+  );
 
   const initConstellations = useCallback((width: number, height: number) => {
     const constellations: Constellation[] = [];
@@ -90,7 +93,7 @@ export function StarfieldCanvas({
 
     // Check for reduced motion preference
     const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
+      "(prefers-reduced-motion: reduce)",
     ).matches;
 
     const handleResize = () => {
@@ -124,7 +127,7 @@ export function StarfieldCanvas({
         0,
         rect.width / 2,
         rect.height / 3,
-        rect.width * 0.8
+        rect.width * 0.8,
       );
       gradient.addColorStop(0, "rgba(19, 13, 42, 0.4)");
       gradient.addColorStop(0.5, "rgba(35, 24, 71, 0.2)");
@@ -176,7 +179,7 @@ export function StarfieldCanvas({
         // Mouse interaction - subtle glow when near
         const distToMouse = Math.hypot(
           star.x - mouseRef.current.x,
-          star.y - mouseRef.current.y
+          star.y - mouseRef.current.y,
         );
         const glowIntensity = Math.max(0, 1 - distToMouse / 150);
 
