@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Camera, Check, Copy, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
@@ -20,6 +20,15 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<{
+    name: string;
+    email: string;
+    role: string;
+    avatarUrl: string;
+    referenceCode: string;
+  } | null>(null);
+  const [isReferenceCopied, setIsReferenceCopied] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,14 +40,49 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    function updateProfile(
+      session: Awaited<
+        ReturnType<typeof supabase.auth.getSession>
+      >["data"]["session"],
+    ) {
       setIsSignedIn(Boolean(session));
-    });
+      if (!session) {
+        setProfile(null);
+        return;
+      }
+
+      supabase
+        .from("admin_role_assignments")
+        .select("portal_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setProfile({
+            name:
+              session.user.user_metadata?.full_name ||
+              session.user.email?.split("@")[0] ||
+              "Applicant",
+            email: session.user.email || "",
+            role:
+              session.user.app_metadata?.role ||
+              session.user.user_metadata?.role ||
+              "Applicant",
+            avatarUrl: session.user.user_metadata?.avatar_url || "",
+            referenceCode:
+              data?.portal_id ||
+              session.user.id.replaceAll("-", "").slice(0, 8).toUpperCase(),
+          });
+        });
+    }
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => updateProfile(session));
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsSignedIn(Boolean(session));
+      updateProfile(session);
     });
 
     return () => subscription.unsubscribe();
@@ -47,6 +91,32 @@ export function Header() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     setIsMobileMenuOpen(false);
+    setIsProfileOpen(false);
+    setIsReferenceCopied(false);
+  }
+
+  async function copyReferenceCode() {
+    if (!profile?.referenceCode) return;
+    await navigator.clipboard.writeText(profile.referenceCode);
+    setIsReferenceCopied(true);
+    window.setTimeout(() => setIsReferenceCopied(false), 1600);
+  }
+
+  async function handleAvatarChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+    if (!file || !profile || file.size > 1024 * 1024) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const avatarUrl = String(reader.result);
+      const { error } = await supabase.auth.updateUser({
+        data: { avatar_url: avatarUrl },
+      });
+      if (!error) setProfile({ ...profile, avatarUrl });
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -86,14 +156,98 @@ export function Header() {
 
         {/* CTA Buttons */}
         <div className="flex items-center gap-3 sm:gap-4">
-          {isSignedIn ? (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="hidden sm:inline-flex items-center justify-center rounded-md border border-gold-primary/40 bg-transparent px-3.5 py-2 text-xs font-medium uppercase tracking-[0.18em] text-gold-primary transition-colors hover:bg-gold-primary/10"
-            >
-              Sign Out
-            </button>
+          {isSignedIn && profile ? (
+            <div className="relative hidden sm:block">
+              <button
+                type="button"
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="inline-flex items-center gap-2 rounded-md border border-gold-primary/40 px-3 py-2 text-left transition-colors hover:bg-gold-primary/10"
+                aria-expanded={isProfileOpen}
+              >
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt=""
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold-primary text-xs font-bold text-bg-void">
+                    {profile.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="max-w-28 truncate text-xs font-medium text-gold-primary">
+                  {profile.name}
+                </span>
+              </button>
+
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-xl border border-gold-primary/25 bg-bg-void/95 p-4 shadow-2xl backdrop-blur-xl">
+                  <div className="flex items-center gap-3 border-b border-border-cosmic-blue pb-3">
+                    {profile.avatarUrl ? (
+                      <img
+                        src={profile.avatarUrl}
+                        alt=""
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold-primary text-lg font-bold text-bg-void">
+                        {profile.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-text-stardust">
+                        {profile.name}
+                      </p>
+                      <p className="truncate text-xs text-text-stardust/60">
+                        {profile.email}
+                      </p>
+                      <p className="text-xs capitalize text-gold-primary">
+                        {profile.role.replaceAll("_", " ")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between rounded-lg border border-gold-primary/20 bg-gold-primary/5 px-3 py-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-text-stardust/50">
+                        Reference code
+                      </p>
+                      <p className="font-mono text-sm font-semibold tracking-wider text-gold-primary">
+                        {profile.referenceCode}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copyReferenceCode()}
+                      className="rounded-md p-2 text-text-stardust/60 hover:bg-gold-primary/10 hover:text-gold-primary"
+                      title="Copy reference code"
+                      aria-label="Copy reference code"
+                    >
+                      {isReferenceCopied ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  </div>
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-text-stardust/70 hover:text-gold-primary">
+                    <Camera size={15} /> Set profile photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="sr-only"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="mt-3 w-full rounded-md border border-red-400/30 px-3 py-2 text-left text-xs text-red-300 hover:bg-red-400/10"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link
               href="/signin"
@@ -143,14 +297,72 @@ export function Header() {
                 </Link>
               ))}
               <div className="px-6 py-4 space-y-3">
-                {isSignedIn ? (
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="border border-gold-primary/40 text-gold-primary bg-transparent text-sm w-full text-center block rounded-md px-4 py-2.5 font-medium"
-                  >
-                    Sign Out
-                  </button>
+                {isSignedIn && profile ? (
+                  <div className="rounded-lg border border-gold-primary/25 p-3">
+                    <div className="flex items-center gap-3">
+                      {profile.avatarUrl ? (
+                        <img
+                          src={profile.avatarUrl}
+                          alt=""
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-primary font-bold text-bg-void">
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {profile.name}
+                        </p>
+                        <p className="truncate text-xs text-text-stardust/60">
+                          {profile.email}
+                        </p>
+                        <p className="text-xs capitalize text-gold-primary">
+                          {profile.role.replaceAll("_", " ")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between rounded-lg border border-gold-primary/20 bg-gold-primary/5 px-3 py-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-text-stardust/50">
+                          Reference code
+                        </p>
+                        <p className="font-mono text-sm font-semibold tracking-wider text-gold-primary">
+                          {profile.referenceCode}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void copyReferenceCode()}
+                        className="rounded-md p-2 text-text-stardust/60 hover:bg-gold-primary/10 hover:text-gold-primary"
+                        title="Copy reference code"
+                        aria-label="Copy reference code"
+                      >
+                        {isReferenceCopied ? (
+                          <Check size={16} />
+                        ) : (
+                          <Copy size={16} />
+                        )}
+                      </button>
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-text-stardust/70">
+                      <Camera size={15} /> Set profile photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="sr-only"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="mt-3 w-full rounded-md border border-red-400/30 px-3 py-2 text-left text-xs text-red-300"
+                    >
+                      Sign out
+                    </button>
+                  </div>
                 ) : (
                   <Link
                     href="/signin"

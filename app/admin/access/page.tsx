@@ -28,6 +28,7 @@ type ActionRequest = {
   resource: string;
   status: string;
   requested_by: string;
+  record_id: string | null;
   created_at: string;
   review_note: string | null;
 };
@@ -67,6 +68,8 @@ function roleDisplayName(name: string) {
 
 export default function AdminAccessPage() {
   const { hasPermission, permissions, user } = useAdminAuth();
+  const canManageRoles = hasPermission("roles.manage");
+  const canRequestRevocation = hasPermission("secretariat.manage");
   const [roles, setRoles] = useState<Role[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [requests, setRequests] = useState<ActionRequest[]>([]);
@@ -85,10 +88,10 @@ export default function AdminAccessPage() {
   });
 
   useEffect(() => {
-    if (permissions.includes("*") || permissions.includes("roles.manage")) {
+    if (canManageRoles || canRequestRevocation) {
       void loadData();
     }
-  }, [permissions]);
+  }, [canManageRoles, canRequestRevocation]);
 
   async function loadData() {
     setIsLoading(true);
@@ -269,24 +272,52 @@ export default function AdminAccessPage() {
       );
       return;
     }
+    if (item.role?.name === "super_admin") {
+      setMessage("The Founder access cannot be revoked.");
+      return;
+    }
     if (!window.confirm(`Revoke admin access for ${item.email}?`)) return;
     setIsSaving(true);
-    const { error } = await supabase
-      .from("admin_role_assignments")
-      .delete()
-      .eq("id", item.id);
+    const { error } = canManageRoles
+      ? await supabase.from("admin_role_assignments").delete().eq("id", item.id)
+      : await supabase.from("admin_action_requests").insert({
+          requested_by: user?.id,
+          action: "delete",
+          resource: "admin_role_assignments",
+          record_id: item.id,
+          payload: { email: item.email, portal_id: item.portal_id },
+        });
     setIsSaving(false);
     if (error) {
       setMessage(error.message);
       return;
     }
-    setAssignments((current) =>
-      current.filter((assignment) => assignment.id !== item.id),
-    );
-    setMessage("Admin access revoked.");
+    if (canManageRoles) {
+      setAssignments((current) =>
+        current.filter((assignment) => assignment.id !== item.id),
+      );
+      setMessage("Admin access revoked.");
+    } else {
+      setMessage("Revocation request sent to the Founder for approval.");
+    }
   }
 
   async function reviewRequest(id: string, status: "approved" | "rejected") {
+    if (!canManageRoles) return;
+    const request = requests.find((item) => item.id === id);
+    if (
+      status === "approved" &&
+      request?.resource === "admin_role_assignments"
+    ) {
+      const { error: deleteError } = await supabase
+        .from("admin_role_assignments")
+        .delete()
+        .eq("id", request.record_id || "");
+      if (deleteError) {
+        setMessage(deleteError.message);
+        return;
+      }
+    }
     const { error } = await supabase
       .from("admin_action_requests")
       .update({
@@ -300,7 +331,7 @@ export default function AdminAccessPage() {
       setRequests((current) => current.filter((request) => request.id !== id));
   }
 
-  if (!hasPermission("roles.manage")) {
+  if (!canManageRoles && !canRequestRevocation) {
     return (
       <div className="card-cosmic p-8 text-center text-text-stardust/70">
         This area is restricted to the Super Admin.
@@ -345,253 +376,268 @@ export default function AdminAccessPage() {
         </div>
       )}
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <form onSubmit={createRole} className="card-cosmic space-y-3 p-4">
-          <h2 className="flex items-center gap-2 text-lg font-heading">
-            <Plus size={20} className="text-gold-primary" /> Create role
-          </h2>
-          <input
-            className="input-cosmic"
-            placeholder="Role name, e.g. communications_lead"
-            value={newRole.name}
-            onChange={(event) =>
-              setNewRole({ ...newRole, name: event.target.value })
-            }
-            required
-          />
-          <textarea
-            className="input-cosmic min-h-14"
-            placeholder="What this role is responsible for"
-            value={newRole.description}
-            onChange={(event) =>
-              setNewRole({ ...newRole, description: event.target.value })
-            }
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            {permissionOptions.map(([permission, label]) => (
-              <label
-                key={permission}
-                className="flex items-center gap-2 text-sm text-text-stardust/80"
-              >
-                <input
-                  type="checkbox"
-                  checked={newRole.permissions.includes(permission)}
-                  onChange={() => togglePermission(permission)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-          <button
-            className="btn-primary flex items-center gap-2"
-            disabled={isSaving}
-          >
-            <Plus size={18} /> Create role
-          </button>
-        </form>
-
-        <form onSubmit={assignRole} className="card-cosmic space-y-3 p-4">
-          <h2 className="flex items-center gap-2 text-lg font-heading">
-            <UserPlus size={20} className="text-gold-primary" /> Assign a role
-          </h2>
-          <p className="text-xs text-text-stardust/60">
-            Use the user UUID from Supabase Auth. The email is kept for a
-            readable audit trail.
-          </p>
-          <input
-            className="input-cosmic"
-            placeholder="User UUID"
-            value={assignment.userId}
-            onChange={(event) =>
-              setAssignment({ ...assignment, userId: event.target.value })
-            }
-            required
-          />
-          <input
-            className="input-cosmic"
-            type="email"
-            placeholder="admin@example.com"
-            value={assignment.email}
-            onChange={(event) =>
-              setAssignment({ ...assignment, email: event.target.value })
-            }
-            required
-          />
-          <select
-            className="input-cosmic"
-            value={assignment.roleId}
-            onChange={(event) =>
-              setAssignment({ ...assignment, roleId: event.target.value })
-            }
-            required
-          >
-            <option value="">Choose a role</option>
-            {roles.map((item) => (
-              <option key={item.id} value={item.id}>
-                {roleDisplayName(item.name)}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn-primary flex items-center gap-2"
-            disabled={isSaving}
-          >
-            <UserPlus size={18} /> Assign role
-          </button>
-        </form>
-      </section>
-
-      <section className="card-cosmic p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-lg font-heading">
-          <UserPlus size={20} className="text-gold-primary" /> Assigned
-          administrators
-        </h2>
-        {assignments.length === 0 ? (
-          <p className="text-text-stardust/60">
-            No database role assignments yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {assignments.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col gap-2 border-b border-border-cosmic-blue/50 pb-2 last:border-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{item.email}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gold-primary">
-                    Reference code: {item.portal_id}
-                  </p>
-                  <p className="truncate text-xs text-text-stardust/50">
-                    {item.user_id}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    className="input-cosmic min-w-40"
-                    value={item.role_id}
-                    disabled={isSaving}
-                    onChange={(event) =>
-                      void changeAssignmentRole(item.id, event.target.value)
-                    }
-                    aria-label={`Role for ${item.email}`}
-                  >
-                    {roles.map((availableRole) => (
-                      <option key={availableRole.id} value={availableRole.id}>
-                        {roleDisplayName(availableRole.name)}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={isSaving || item.user_id === user?.id}
-                    onClick={() => void revokeAssignment(item)}
-                  >
-                    Revoke
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="card-cosmic p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-lg font-heading">
-          <ShieldCheck size={20} className="text-gold-primary" /> Edit roles &
-          permissions
-        </h2>
-        <div className="space-y-2">
-          {roles.map((item) => (
-            <details
-              key={item.id}
-              className="border-b border-border-cosmic-blue/50 pb-2 last:border-0"
+      {canManageRoles && (
+        <section className="grid gap-4 xl:grid-cols-2">
+          <form onSubmit={createRole} className="card-cosmic space-y-3 p-4">
+            <h2 className="flex items-center gap-2 text-lg font-heading">
+              <Plus size={20} className="text-gold-primary" /> Create role
+            </h2>
+            <input
+              className="input-cosmic"
+              placeholder="Role name, e.g. communications_lead"
+              value={newRole.name}
+              onChange={(event) =>
+                setNewRole({ ...newRole, name: event.target.value })
+              }
+              required
+            />
+            <textarea
+              className="input-cosmic min-h-14"
+              placeholder="What this role is responsible for"
+              value={newRole.description}
+              onChange={(event) =>
+                setNewRole({ ...newRole, description: event.target.value })
+              }
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {permissionOptions.map(([permission, label]) => (
+                <label
+                  key={permission}
+                  className="flex items-center gap-2 text-sm text-text-stardust/80"
+                >
+                  <input
+                    type="checkbox"
+                    checked={newRole.permissions.includes(permission)}
+                    onChange={() => togglePermission(permission)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <button
+              className="btn-primary flex items-center gap-2"
+              disabled={isSaving}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm">
-                <span className="font-medium">
+              <Plus size={18} /> Create role
+            </button>
+          </form>
+
+          <form onSubmit={assignRole} className="card-cosmic space-y-3 p-4">
+            <h2 className="flex items-center gap-2 text-lg font-heading">
+              <UserPlus size={20} className="text-gold-primary" /> Assign a role
+            </h2>
+            <p className="text-xs text-text-stardust/60">
+              Use the user UUID from Supabase Auth. The email is kept for a
+              readable audit trail.
+            </p>
+            <input
+              className="input-cosmic"
+              placeholder="User UUID"
+              value={assignment.userId}
+              onChange={(event) =>
+                setAssignment({ ...assignment, userId: event.target.value })
+              }
+              required
+            />
+            <input
+              className="input-cosmic"
+              type="email"
+              placeholder="admin@example.com"
+              value={assignment.email}
+              onChange={(event) =>
+                setAssignment({ ...assignment, email: event.target.value })
+              }
+              required
+            />
+            <select
+              className="input-cosmic"
+              value={assignment.roleId}
+              onChange={(event) =>
+                setAssignment({ ...assignment, roleId: event.target.value })
+              }
+              required
+            >
+              <option value="">Choose a role</option>
+              {roles.map((item) => (
+                <option key={item.id} value={item.id}>
                   {roleDisplayName(item.name)}
-                </span>
-                <span className="text-xs text-text-stardust/50">
-                  {item.is_system ? "Built-in" : "Custom"} ·{" "}
-                  {item.permissions.includes("*")
-                    ? "Full access"
-                    : `${item.permissions.length} permissions`}
-                </span>
-              </summary>
-              <div className="space-y-2 pt-2">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    className="input-cosmic"
-                    value={item.name === "super_admin" ? "Founder" : item.name}
-                    readOnly={item.name === "super_admin"}
-                    onChange={(event) =>
-                      updateRole(item.id, { name: event.target.value })
-                    }
-                    aria-label={`Name for ${item.name}`}
-                  />
-                  <input
-                    className="input-cosmic"
-                    value={item.description || ""}
-                    placeholder="Role description"
-                    onChange={(event) =>
-                      updateRole(item.id, { description: event.target.value })
-                    }
-                    aria-label={`Description for ${item.name}`}
-                  />
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn-primary flex items-center gap-2"
+              disabled={isSaving}
+            >
+              <UserPlus size={18} /> Assign role
+            </button>
+          </form>
+        </section>
+      )}
+
+      {(canManageRoles || canRequestRevocation) && (
+        <section className="card-cosmic p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-lg font-heading">
+            <UserPlus size={20} className="text-gold-primary" /> Assigned
+            administrators
+          </h2>
+          {assignments.length === 0 ? (
+            <p className="text-text-stardust/60">
+              No database role assignments yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {assignments.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-2 border-b border-border-cosmic-blue/50 pb-2 last:border-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{item.email}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gold-primary">
+                      Reference code: {item.portal_id}
+                    </p>
+                    <p className="truncate text-xs text-text-stardust/50">
+                      {item.user_id}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canManageRoles && (
+                      <select
+                        className="input-cosmic min-w-40"
+                        value={item.role_id}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          void changeAssignmentRole(item.id, event.target.value)
+                        }
+                        aria-label={`Role for ${item.email}`}
+                      >
+                        {roles.map((availableRole) => (
+                          <option
+                            key={availableRole.id}
+                            value={availableRole.id}
+                          >
+                            {roleDisplayName(availableRole.name)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {item.role?.name !== "super_admin" && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={isSaving || item.user_id === user?.id}
+                        onClick={() => void revokeAssignment(item)}
+                      >
+                        {canManageRoles ? "Revoke" : "Request revoke"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="grid gap-x-3 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-                  <label className="flex items-center gap-2 text-xs text-gold-primary">
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {canManageRoles && (
+        <section className="card-cosmic p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-lg font-heading">
+            <ShieldCheck size={20} className="text-gold-primary" /> Edit roles &
+            permissions
+          </h2>
+          <div className="space-y-2">
+            {roles.map((item) => (
+              <details
+                key={item.id}
+                className="border-b border-border-cosmic-blue/50 pb-2 last:border-0"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm">
+                  <span className="font-medium">
+                    {roleDisplayName(item.name)}
+                  </span>
+                  <span className="text-xs text-text-stardust/50">
+                    {item.is_system ? "Built-in" : "Custom"} ·{" "}
+                    {item.permissions.includes("*")
+                      ? "Full access"
+                      : `${item.permissions.length} permissions`}
+                  </span>
+                </summary>
+                <div className="space-y-2 pt-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     <input
-                      type="checkbox"
-                      checked={item.permissions.includes("*")}
-                      onChange={() => toggleRolePermission(item.id, "*")}
+                      className="input-cosmic"
+                      value={
+                        item.name === "super_admin" ? "Founder" : item.name
+                      }
+                      readOnly={item.name === "super_admin"}
+                      onChange={(event) =>
+                        updateRole(item.id, { name: event.target.value })
+                      }
+                      aria-label={`Name for ${item.name}`}
                     />
-                    Full access
-                  </label>
-                  {permissionOptions.map(([permission, label]) => (
-                    <label
-                      key={permission}
-                      className="flex items-center gap-2 text-xs text-text-stardust/80"
-                    >
+                    <input
+                      className="input-cosmic"
+                      value={item.description || ""}
+                      placeholder="Role description"
+                      onChange={(event) =>
+                        updateRole(item.id, { description: event.target.value })
+                      }
+                      aria-label={`Description for ${item.name}`}
+                    />
+                  </div>
+                  <div className="grid gap-x-3 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="flex items-center gap-2 text-xs text-gold-primary">
                       <input
                         type="checkbox"
-                        checked={
-                          item.permissions.includes("*") ||
-                          item.permissions.includes(permission)
-                        }
-                        disabled={item.permissions.includes("*")}
-                        onChange={() =>
-                          toggleRolePermission(item.id, permission)
-                        }
+                        checked={item.permissions.includes("*")}
+                        onChange={() => toggleRolePermission(item.id, "*")}
                       />
-                      {label}
+                      Full access
                     </label>
-                  ))}
+                    {permissionOptions.map(([permission, label]) => (
+                      <label
+                        key={permission}
+                        className="flex items-center gap-2 text-xs text-text-stardust/80"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            item.permissions.includes("*") ||
+                            item.permissions.includes(permission)
+                          }
+                          disabled={item.permissions.includes("*")}
+                          onChange={() =>
+                            toggleRolePermission(item.id, permission)
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="btn-primary flex items-center gap-2"
+                      disabled={isSaving || !item.name.trim()}
+                      onClick={() => void saveRole(item)}
+                    >
+                      <Check size={16} /> Save role
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={isSaving || item.name === "super_admin"}
+                      onClick={() => void deleteRole(item)}
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="btn-primary flex items-center gap-2"
-                    disabled={isSaving || !item.name.trim()}
-                    onClick={() => void saveRole(item)}
-                  >
-                    <Check size={16} /> Save role
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary flex items-center gap-2"
-                    disabled={isSaving || item.name === "super_admin"}
-                    onClick={() => void deleteRole(item)}
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                </div>
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card-cosmic p-4">
         <h2 className="mb-3 flex items-center gap-2 text-lg font-heading">
@@ -619,20 +665,22 @@ export default function AdminAccessPage() {
                     {new Date(request.created_at).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    className="btn-primary flex items-center gap-2"
-                    onClick={() => reviewRequest(request.id, "approved")}
-                  >
-                    <Check size={16} /> Approve
-                  </button>
-                  <button
-                    className="btn-secondary flex items-center gap-2"
-                    onClick={() => reviewRequest(request.id, "rejected")}
-                  >
-                    <X size={16} /> Reject
-                  </button>
-                </div>
+                {canManageRoles && (
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-primary flex items-center gap-2"
+                      onClick={() => reviewRequest(request.id, "approved")}
+                    >
+                      <Check size={16} /> Approve
+                    </button>
+                    <button
+                      className="btn-secondary flex items-center gap-2"
+                      onClick={() => reviewRequest(request.id, "rejected")}
+                    >
+                      <X size={16} /> Reject
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

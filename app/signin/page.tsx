@@ -147,7 +147,7 @@ export default function SignInPage() {
               <p className="text-center text-sm text-text-stardust/70">
                 New applicant? Choose an application path to create an account.
                 <Link
-                  href="/apply"
+                  href="/applications"
                   className="ml-1 text-gold-primary hover:underline"
                 >
                   Continue to applications

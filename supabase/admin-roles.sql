@@ -59,18 +59,86 @@ RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS
     );
 $$;
 
+CREATE OR REPLACE FUNCTION public.admin_has_permission(required_permission TEXT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+        SELECT COALESCE(
+                EXISTS (
+                        SELECT 1
+                        FROM public.admin_role_assignments assignment
+                        JOIN public.admin_roles role_definition
+                                ON role_definition.id = assignment.role_id
+                        WHERE assignment.user_id = auth.uid()
+                            AND (
+                                role_definition.permissions @> jsonb_build_array('*')
+                                OR role_definition.permissions @> jsonb_build_array(required_permission)
+                            )
+                )
+                OR EXISTS (
+                        SELECT 1
+                        FROM public.admin_roles role_definition
+                        WHERE role_definition.name IN (
+                                auth.jwt() -> 'app_metadata' ->> 'role',
+                                auth.jwt() -> 'user_metadata' ->> 'role'
+                        )
+                            AND (
+                                role_definition.permissions @> jsonb_build_array('*')
+                                OR role_definition.permissions @> jsonb_build_array(required_permission)
+                            )
+                ),
+                false
+        );
+$$;
+
 DROP POLICY IF EXISTS "Super admins manage role definitions" ON admin_roles;
+DROP POLICY IF EXISTS "Super admins manage non-founder role definitions" ON admin_roles;
 DROP POLICY IF EXISTS "Authenticated users can read role definitions" ON admin_roles;
 DROP POLICY IF EXISTS "Admins can read their assigned role" ON admin_role_assignments;
 DROP POLICY IF EXISTS "Super admins manage role assignments" ON admin_role_assignments;
+DROP POLICY IF EXISTS "Super admins manage non-founder assignments" ON admin_role_assignments;
 DROP POLICY IF EXISTS "Admins can read action requests" ON admin_action_requests;
 DROP POLICY IF EXISTS "Admins can request actions" ON admin_action_requests;
 DROP POLICY IF EXISTS "Super admins review actions" ON admin_action_requests;
 
-CREATE POLICY "Super admins manage role definitions" ON admin_roles FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+CREATE POLICY "Super admins manage non-founder role definitions" ON admin_roles
+    FOR ALL TO authenticated
+    USING (is_super_admin() AND name <> 'super_admin')
+    WITH CHECK (is_super_admin() AND name <> 'super_admin');
 CREATE POLICY "Authenticated users can read role definitions" ON admin_roles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments FOR SELECT TO authenticated USING (user_id = auth.uid() OR is_super_admin());
-CREATE POLICY "Super admins manage role assignments" ON admin_role_assignments FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments
+    FOR SELECT TO authenticated
+    USING (
+        user_id = auth.uid()
+        OR is_super_admin()
+        OR admin_has_permission('secretariat.manage')
+    );
+CREATE POLICY "Super admins manage non-founder assignments" ON admin_role_assignments
+    FOR ALL TO authenticated
+    USING (
+        is_super_admin()
+        AND NOT EXISTS (
+            SELECT 1 FROM public.admin_roles founder_role
+            WHERE founder_role.id = role_id
+              AND founder_role.name = 'super_admin'
+        )
+    )
+    WITH CHECK (
+        is_super_admin()
+        AND NOT EXISTS (
+            SELECT 1 FROM public.admin_roles founder_role
+            WHERE founder_role.id = role_id
+              AND founder_role.name = 'super_admin'
+        )
+    );
 CREATE POLICY "Admins can read action requests" ON admin_action_requests FOR SELECT TO authenticated USING (requested_by = auth.uid() OR is_super_admin());
-CREATE POLICY "Admins can request actions" ON admin_action_requests FOR INSERT TO authenticated WITH CHECK (requested_by = auth.uid());
+CREATE POLICY "Admins can request actions" ON admin_action_requests
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        requested_by = auth.uid()
+        AND admin_has_permission('secretariat.manage')
+    );
 CREATE POLICY "Super admins review actions" ON admin_action_requests FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());

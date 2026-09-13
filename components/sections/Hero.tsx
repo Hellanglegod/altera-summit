@@ -154,13 +154,13 @@ export function Hero() {
             className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6 pt-6 sm:pt-8"
           >
             <Link
-              href="#committees"
+              href="/committees"
               className="btn-primary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto"
             >
               Explore Committees
             </Link>
             <Link
-              href="#applications"
+              href="/applications"
               className="btn-secondary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto"
             >
               Enter Portal

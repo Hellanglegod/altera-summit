@@ -45,6 +45,7 @@ export default function ApplyPage() {
     | Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
   >(null);
   const [authMode, setAuthMode] = useState<"signUp" | "signIn">("signUp");
+  const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authConfirmPassword, setAuthConfirmPassword] = useState("");
@@ -147,7 +148,12 @@ export default function ApplyPage() {
     setAuthError("");
     setAuthNotice("");
 
+    const trimmedName = authName.trim();
     const trimmedEmail = authEmail.trim();
+    if (authMode === "signUp" && !trimmedName) {
+      setAuthError("Please enter your name.");
+      return;
+    }
     if (!trimmedEmail || !authPassword) {
       setAuthError("Please enter both your email and password.");
       return;
@@ -171,6 +177,7 @@ export default function ApplyPage() {
           ? supabase.auth.signUp({
               email: trimmedEmail,
               password: authPassword,
+              options: { data: { full_name: trimmedName } },
             })
           : supabase.auth.signInWithPassword({
               email: trimmedEmail,
@@ -201,6 +208,7 @@ export default function ApplyPage() {
       }
 
       setAuthEmail("");
+      setAuthName("");
       setAuthPassword("");
       setAuthConfirmPassword("");
     } catch (error) {
@@ -529,6 +537,23 @@ export default function ApplyPage() {
             </div>
 
             <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {authMode === "signUp" && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-text-stardust/80">
+                    Full name
+                  </label>
+                  <input
+                    type="text"
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    required
+                    autoComplete="name"
+                    className="input-cosmic"
+                    placeholder="Your full name"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-text-stardust/80">
                   Email address

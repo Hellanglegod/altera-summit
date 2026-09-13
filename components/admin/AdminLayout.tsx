@@ -16,6 +16,8 @@ import {
   UserCheck,
   FileEdit,
   ShieldCheck,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -62,7 +64,7 @@ const navItems = [
     href: "/admin/access",
     label: "Roles & Approvals",
     icon: ShieldCheck,
-    permission: "roles.manage",
+    permission: "secretariat.manage",
   },
 ];
 
@@ -71,11 +73,24 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
     router.push("/admin/login");
   };
+
+  async function copyReferenceCode() {
+    if (!portalId) return;
+    await navigator.clipboard.writeText(portalId);
+    setIsCopied(true);
+    window.setTimeout(() => setIsCopied(false), 1600);
+  }
+
+  const profileName =
+    user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Admin";
+  const profileAvatar = user?.user_metadata?.avatar_url as string | undefined;
 
   return (
     <div className="min-h-screen bg-bg-void text-text-stardust">
@@ -99,25 +114,89 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-sm font-medium">{user?.email}</span>
-              <span className="text-xs text-text-stardust/60 capitalize">
-                {role?.replace("_", " ")}
-              </span>
-              {portalId && (
-                <span className="text-[10px] uppercase tracking-wider text-gold-primary/80">
-                  Reference code: {portalId}
+          <div className="relative flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-nebula-purple-1"
+              aria-expanded={isProfileOpen}
+              aria-label="Open profile menu"
+            >
+              {profileAvatar ? (
+                <img
+                  src={profileAvatar}
+                  alt=""
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-primary text-xs font-bold text-bg-void">
+                  {profileName.charAt(0).toUpperCase()}
                 </span>
               )}
-            </div>
-            <button
-              onClick={handleSignOut}
-              className="p-2 hover:bg-nebula-purple-1 rounded-lg transition-colors flex items-center gap-2 text-sm"
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">Sign Out</span>
+              <span className="hidden text-left md:block">
+                <span className="block max-w-36 truncate text-sm font-medium">
+                  {profileName}
+                </span>
+                <span className="block text-xs capitalize text-text-stardust/60">
+                  {role?.replaceAll("_", " ")}
+                </span>
+              </span>
             </button>
+
+            {isProfileOpen && (
+              <div className="absolute right-0 top-12 z-50 w-72 rounded-xl border border-gold-primary/25 bg-bg-void/95 p-4 shadow-2xl backdrop-blur-xl">
+                <div className="flex items-center gap-3 border-b border-border-cosmic-blue pb-3">
+                  {profileAvatar ? (
+                    <img
+                      src={profileAvatar}
+                      alt=""
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold-primary text-lg font-bold text-bg-void">
+                      {profileName.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{profileName}</p>
+                    <p className="truncate text-xs text-text-stardust/60">
+                      {user?.email}
+                    </p>
+                    <p className="text-xs capitalize text-gold-primary">
+                      {role?.replaceAll("_", " ")}
+                    </p>
+                  </div>
+                </div>
+                {portalId && (
+                  <div className="mt-3 flex items-center justify-between rounded-lg border border-gold-primary/20 bg-gold-primary/5 px-3 py-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-text-stardust/50">
+                        Reference code
+                      </p>
+                      <p className="font-mono text-sm font-semibold tracking-wider text-gold-primary">
+                        {portalId}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copyReferenceCode()}
+                      className="rounded-md p-2 text-text-stardust/60 hover:bg-gold-primary/10 hover:text-gold-primary"
+                      title="Copy reference code"
+                      aria-label="Copy reference code"
+                    >
+                      {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="mt-3 flex w-full items-center gap-2 rounded-md border border-red-400/30 px-3 py-2 text-left text-xs text-red-300 hover:bg-red-400/10"
+                >
+                  <LogOut size={15} /> Sign out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>

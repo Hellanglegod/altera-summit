@@ -31,7 +31,9 @@ function AdminGuardContent({ children }: { children: React.ReactNode }) {
   const isAccessPage = pathname?.startsWith("/admin/access");
   const canAccessPage =
     (!requiredPermission || hasPermission(requiredPermission)) &&
-    (!isAccessPage || hasPermission("roles.manage"));
+    (!isAccessPage ||
+      hasPermission("roles.manage") ||
+      hasPermission("secretariat.manage"));
 
   useEffect(() => {
     if (!isLoading && !isLoginPage) {
