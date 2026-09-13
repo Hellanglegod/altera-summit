@@ -4,8 +4,14 @@
 ALTER TABLE form_submissions
   ADD COLUMN IF NOT EXISTS committee_id UUID REFERENCES committees(id) ON DELETE SET NULL;
 
+ALTER TABLE admin_role_assignments
+  ADD COLUMN IF NOT EXISTS committee_id UUID REFERENCES committees(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS form_submissions_committee_id_idx
   ON form_submissions(committee_id);
+
+CREATE INDEX IF NOT EXISTS admin_role_assignments_committee_id_idx
+  ON admin_role_assignments(committee_id);
 
 CREATE OR REPLACE FUNCTION public.admin_has_role(required_role TEXT)
 RETURNS BOOLEAN
@@ -64,6 +70,19 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.admin_assigned_committee_id()
+RETURNS UUID
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT committee_id
+  FROM public.admin_role_assignments
+  WHERE user_id = auth.uid()
+  LIMIT 1;
+$$;
+
 UPDATE admin_roles
 SET permissions = '["applications.read", "applications.review", "applications.delegate.accept", "applications.chair.accept", "committees.read"]'::jsonb,
     updated_at = NOW()
@@ -92,21 +111,50 @@ CREATE POLICY "Registrations directors manage submissions" ON form_submissions
 
 CREATE POLICY "Application reviewers can read submissions" ON form_submissions
   FOR SELECT TO authenticated
-  USING (admin_has_permission('applications.read'));
+  USING (
+    admin_has_permission('applications.read')
+    AND (
+      admin_has_permission('applications.manage')
+      OR admin_has_permission('roles.manage')
+      OR committee_id = admin_assigned_committee_id()
+    )
+  );
+
+CREATE POLICY "Secretariat managers can read accepted Secretariat applications" ON form_submissions
+  FOR SELECT TO authenticated
+  USING (
+    portal_type = 'secretariat'
+    AND status IN ('Accepted', 'Confirmed')
+    AND admin_has_permission('secretariat.manage')
+  );
 
 CREATE POLICY "Application reviewers can update submissions" ON form_submissions
   FOR UPDATE TO authenticated
   USING (
-    admin_has_permission('applications.review')
-    OR admin_has_permission('applications.delegate.accept')
-    OR admin_has_permission('applications.chair.accept')
-    OR admin_has_permission('applications.secretariat.accept')
+    (
+      admin_has_permission('applications.review')
+      OR admin_has_permission('applications.delegate.accept')
+      OR admin_has_permission('applications.chair.accept')
+      OR admin_has_permission('applications.secretariat.accept')
+    )
+    AND (
+      admin_has_permission('applications.manage')
+      OR admin_has_permission('roles.manage')
+      OR committee_id = admin_assigned_committee_id()
+    )
   )
   WITH CHECK (
-    admin_has_permission('applications.review')
-    OR admin_has_permission('applications.delegate.accept')
-    OR admin_has_permission('applications.chair.accept')
-    OR admin_has_permission('applications.secretariat.accept')
+    (
+      admin_has_permission('applications.review')
+      OR admin_has_permission('applications.delegate.accept')
+      OR admin_has_permission('applications.chair.accept')
+      OR admin_has_permission('applications.secretariat.accept')
+    )
+    AND (
+      admin_has_permission('applications.manage')
+      OR admin_has_permission('roles.manage')
+      OR committee_id = admin_assigned_committee_id()
+    )
   );
 
 -- Rebuild content-management policies around permissions so custom roles work.

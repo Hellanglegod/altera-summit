@@ -37,10 +37,18 @@ type Assignment = {
   id: string;
   user_id: string;
   portal_id: string;
+  committee_id: string | null;
   email: string;
   role_id: string;
-  role?: { name?: string } | null;
+  role?: { name?: string; permissions?: string[] } | null;
   created_at: string;
+};
+
+type AcceptedSecretariatMember = {
+  id: string;
+  applicant_name: string;
+  applicant_email: string;
+  status: string;
 };
 
 const permissionOptions = [
@@ -66,12 +74,28 @@ function roleDisplayName(name: string) {
   return name === "super_admin" ? "Founder" : name.replaceAll("_", " ");
 }
 
+function roleCanManageChairCommittee(
+  role: { name?: string; permissions?: string[] } | null | undefined,
+) {
+  return Boolean(
+    role?.permissions?.includes("applications.chair.accept") ||
+    role?.name?.toLowerCase().includes("chair"),
+  );
+}
+
 export default function AdminAccessPage() {
   const { hasPermission, permissions, user } = useAdminAuth();
   const canManageRoles = hasPermission("roles.manage");
   const canRequestRevocation = hasPermission("secretariat.manage");
+  const canAssignAcceptedMember = canManageRoles || canRequestRevocation;
   const [roles, setRoles] = useState<Role[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [committees, setCommittees] = useState<
+    { id: string; name: string; abbreviation: string }[]
+  >([]);
+  const [acceptedSecretariatMembers, setAcceptedSecretariatMembers] = useState<
+    AcceptedSecretariatMember[]
+  >([]);
   const [requests, setRequests] = useState<ActionRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,6 +109,7 @@ export default function AdminAccessPage() {
     userId: "",
     email: "",
     roleId: "",
+    committeeId: "",
   });
 
   useEffect(() => {
@@ -100,7 +125,7 @@ export default function AdminAccessPage() {
       supabase
         .from("admin_role_assignments")
         .select(
-          "id, user_id, portal_id, email, role_id, created_at, role:admin_roles(name)",
+          "id, user_id, portal_id, committee_id, email, role_id, created_at, role:admin_roles(name, permissions)",
         )
         .order("created_at", { ascending: true }),
       supabase
@@ -114,6 +139,18 @@ export default function AdminAccessPage() {
     }
     setRoles((rolesResult.data || []) as Role[]);
     setAssignments((assignmentsResult.data || []) as Assignment[]);
+    const { data: committeeData } = await supabase
+      .from("committees")
+      .select("id, name, abbreviation")
+      .order("display_order", { ascending: true });
+    setCommittees(committeeData || []);
+    const { data: acceptedMembers } = await supabase
+      .from("form_submissions")
+      .select("id, applicant_name, applicant_email, status")
+      .eq("portal_type", "secretariat")
+      .in("status", ["Accepted", "Confirmed"])
+      .order("applicant_name", { ascending: true });
+    setAcceptedSecretariatMembers(acceptedMembers || []);
     setRequests((requestsResult.data || []) as ActionRequest[]);
     setIsLoading(false);
   }
@@ -210,12 +247,17 @@ export default function AdminAccessPage() {
 
   async function assignRole(event: React.FormEvent) {
     event.preventDefault();
+    const selectedRole = roles.find((item) => item.id === assignment.roleId);
     setIsSaving(true);
     const { error } = await supabase.from("admin_role_assignments").upsert(
       {
         user_id: assignment.userId.trim(),
         email: assignment.email.trim(),
         role_id: assignment.roleId,
+        committee_id:
+          selectedRole && roleCanManageChairCommittee(selectedRole)
+            ? assignment.committeeId || null
+            : null,
         assigned_by: user?.id,
         updated_at: new Date().toISOString(),
       },
@@ -228,18 +270,39 @@ export default function AdminAccessPage() {
         : "Role assigned. The user will receive the updated permissions on their next session.",
     );
     if (!error) {
-      setAssignment({ userId: "", email: "", roleId: "" });
+      setAssignment({ userId: "", email: "", roleId: "", committeeId: "" });
       await loadData();
     }
   }
 
+  async function selectAcceptedMember(email: string) {
+    setAssignment((current) => ({ ...current, email, userId: "" }));
+    if (!email) return;
+
+    const { data, error } = await supabase.rpc("find_auth_user_id_by_email", {
+      target_email: email,
+    });
+    if (error || !data) {
+      setMessage(
+        "This accepted member does not have a confirmed account yet. Ask them to sign up first.",
+      );
+      return;
+    }
+    setAssignment((current) => ({ ...current, email, userId: data }));
+  }
+
   async function changeAssignmentRole(assignmentId: string, roleId: string) {
     if (!roleId) return;
+    const selectedRole = roles.find((item) => item.id === roleId);
     setIsSaving(true);
     const { error } = await supabase
       .from("admin_role_assignments")
       .update({
         role_id: roleId,
+        committee_id:
+          selectedRole && roleCanManageChairCommittee(selectedRole)
+            ? undefined
+            : null,
         assigned_by: user?.id,
         updated_at: new Date().toISOString(),
       })
@@ -255,13 +318,42 @@ export default function AdminAccessPage() {
           ? {
               ...item,
               role_id: roleId,
-              role: { name: roles.find((item) => item.id === roleId)?.name },
+              role: selectedRole,
+              committee_id:
+                selectedRole && roleCanManageChairCommittee(selectedRole)
+                  ? item.committee_id
+                  : null,
             }
           : item,
       ),
     );
     setMessage(
       "Role updated. The user will receive the change on their next session.",
+    );
+  }
+
+  async function changeAssignmentCommittee(
+    assignmentId: string,
+    committeeId: string,
+  ) {
+    if (!canManageRoles) return;
+    const { error } = await supabase
+      .from("admin_role_assignments")
+      .update({
+        committee_id: committeeId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", assignmentId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setAssignments((current) =>
+      current.map((item) =>
+        item.id === assignmentId
+          ? { ...item, committee_id: committeeId || null }
+          : item,
+      ),
     );
   }
 
@@ -376,7 +468,7 @@ export default function AdminAccessPage() {
         </div>
       )}
 
-      {canManageRoles && (
+      {canAssignAcceptedMember && (
         <section className="grid gap-4 xl:grid-cols-2">
           <form onSubmit={createRole} className="card-cosmic space-y-3 p-4">
             <h2 className="flex items-center gap-2 text-lg font-heading">
@@ -427,42 +519,47 @@ export default function AdminAccessPage() {
               <UserPlus size={20} className="text-gold-primary" /> Assign a role
             </h2>
             <p className="text-xs text-text-stardust/60">
-              Use the user UUID from Supabase Auth. The email is kept for a
-              readable audit trail.
+              Select an accepted Secretariat member, then choose the role to
+              assign.
             </p>
-            <input
-              className="input-cosmic"
-              placeholder="User UUID"
-              value={assignment.userId}
-              onChange={(event) =>
-                setAssignment({ ...assignment, userId: event.target.value })
-              }
-              required
-            />
-            <input
-              className="input-cosmic"
-              type="email"
-              placeholder="admin@example.com"
-              value={assignment.email}
-              onChange={(event) =>
-                setAssignment({ ...assignment, email: event.target.value })
-              }
-              required
-            />
+            {canAssignAcceptedMember && (
+              <select
+                className="input-cosmic"
+                value={assignment.email}
+                onChange={(event) =>
+                  void selectAcceptedMember(event.target.value)
+                }
+                required
+              >
+                <option value="">Choose an accepted Secretariat member</option>
+                {acceptedSecretariatMembers.map((member) => (
+                  <option key={member.id} value={member.applicant_email}>
+                    {member.applicant_name} - {member.applicant_email}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="input-cosmic"
               value={assignment.roleId}
-              onChange={(event) =>
-                setAssignment({ ...assignment, roleId: event.target.value })
-              }
+              onChange={(event) => {
+                const roleId = event.target.value;
+                setAssignment({
+                  ...assignment,
+                  roleId,
+                  committeeId: "",
+                });
+              }}
               required
             >
               <option value="">Choose a role</option>
-              {roles.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {roleDisplayName(item.name)}
-                </option>
-              ))}
+              {roles
+                .filter((item) => canManageRoles || item.name !== "super_admin")
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {roleDisplayName(item.name)}
+                  </option>
+                ))}
             </select>
             <button
               className="btn-primary flex items-center gap-2"
@@ -521,6 +618,28 @@ export default function AdminAccessPage() {
                         ))}
                       </select>
                     )}
+                    {canManageRoles &&
+                      roleCanManageChairCommittee(item.role) && (
+                        <select
+                          className="input-cosmic min-w-40"
+                          value={item.committee_id || ""}
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            void changeAssignmentCommittee(
+                              item.id,
+                              event.target.value,
+                            )
+                          }
+                          aria-label={`Committee for ${item.email}`}
+                        >
+                          <option value="">All committees</option>
+                          {committees.map((committee) => (
+                            <option key={committee.id} value={committee.id}>
+                              {committee.abbreviation}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     {item.role?.name !== "super_admin" && (
                       <button
                         type="button"

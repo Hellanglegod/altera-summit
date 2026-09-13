@@ -10,6 +10,7 @@ interface AdminAuthContextType {
   user: User | null;
   role: AdminRole | null;
   portalId: string | null;
+  committeeId: string | null;
   permissions: string[];
   isLoading: boolean;
   hasPermission: (permission: string) => boolean;
@@ -48,6 +49,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AdminRole | null>(null);
   const [portalId, setPortalId] = useState<string | null>(null);
+  const [committeeId, setCommitteeId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,13 +67,16 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         const { data } = await supabase
           .from("admin_role_assignments")
-          .select("portal_id, role:admin_roles(name, permissions)")
+          .select(
+            "portal_id, committee_id, role:admin_roles(name, permissions)",
+          )
           .eq("user_id", session.user.id)
           .maybeSingle();
         setPortalId(
           data?.portal_id ||
             session.user.id.replaceAll("-", "").slice(0, 8).toUpperCase(),
         );
+        setCommitteeId(data?.committee_id || null);
         const assignedRole = data?.role as {
           name?: string;
           permissions?: string[];
@@ -81,6 +86,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!session?.user) setPortalId(null);
+      if (!session?.user) setCommitteeId(null);
 
       setRole(userRole);
       setPermissions(
@@ -132,6 +138,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         user,
         role,
         portalId,
+        committeeId,
         permissions,
         isLoading,
         hasPermission,

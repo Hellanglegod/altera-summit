@@ -85,7 +85,7 @@ const TRACK_ICONS = {
 };
 
 export default function ApplicationsPage() {
-  const { hasPermission } = useAdminAuth();
+  const { committeeId, hasPermission } = useAdminAuth();
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,7 +143,13 @@ export default function ApplicationsPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setSubmissions(data || []);
+      setSubmissions(
+        committeeId
+          ? (data || []).filter(
+              (submission) => submission.committee_id === committeeId,
+            )
+          : data || [],
+      );
     } catch (error) {
       console.error("Error fetching submissions:", error);
       setStatusMessage({
@@ -158,10 +164,23 @@ export default function ApplicationsPage() {
   async function fetchCommittees() {
     const { data } = await supabase
       .from("committees")
-      .select("id, name, abbreviation")
+      .select("id, name, abbreviation, matrix_url")
       .order("display_order", { ascending: true });
     setCommittees((data || []) as Committee[]);
   }
+
+  const scopedCommittee = committeeId
+    ? committees.find((committee) => committee.id === committeeId)
+    : null;
+  const matrixFilledCount = submissions.filter((submission) =>
+    Object.entries(submission.submission_data || {}).some(
+      ([key, value]) =>
+        /matrix|country|delegation|portfolio|assignment/i.test(key) &&
+        value !== null &&
+        value !== undefined &&
+        String(value).trim().length > 0,
+    ),
+  ).length;
 
   async function handleAssignCommittee(
     submissionId: string,
@@ -440,6 +459,37 @@ export default function ApplicationsPage() {
           </button>
         </div>
       </div>
+
+      {scopedCommittee && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="card-cosmic p-4 sm:col-span-3">
+            <p className="text-xs uppercase tracking-wider text-gold-primary">
+              Your committee
+            </p>
+            <h2 className="mt-1 text-2xl font-heading text-text-stardust">
+              {scopedCommittee.abbreviation} - {scopedCommittee.name}
+            </h2>
+          </div>
+          <div className="card-cosmic p-4">
+            <p className="text-xs text-text-stardust/60">Applicants</p>
+            <p className="mt-1 text-3xl font-bold text-text-stardust">
+              {submissions.length}
+            </p>
+          </div>
+          <div className="card-cosmic p-4">
+            <p className="text-xs text-text-stardust/60">Matrix filled</p>
+            <p className="mt-1 text-3xl font-bold text-gold-primary">
+              {matrixFilledCount}
+            </p>
+          </div>
+          <div className="card-cosmic p-4">
+            <p className="text-xs text-text-stardust/60">Matrix pending</p>
+            <p className="mt-1 text-3xl font-bold text-yellow-400">
+              {Math.max(submissions.length - matrixFilledCount, 0)}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Status Message Notification */}
       {statusMessage && (
