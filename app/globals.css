@@ -1,0 +1,345 @@
+@import "tailwindcss";
+
+/* ============================================
+   ALTERA SUMMIT - COSMIC DESIGN SYSTEM
+   Theme: Cosmology Meets Classical Antiquity
+   ============================================ */
+
+/* --- CSS Custom Properties (Design Tokens) --- */
+@theme inline {
+  /* Cosmic Color Palette */
+  --color-bg-void: #06080C;
+  --color-nebula-purple-1: #130D2A;
+  --color-nebula-purple-2: #231847;
+  --color-gold-primary: #D4AF37;
+  --color-bronze-accent: #9A7B38;
+  --color-text-stardust: #E2E8F0;
+  --color-border-cosmic: #1E293B;
+
+  /* Semantic Colors */
+  --color-primary: var(--color-gold-primary);
+  --color-secondary: var(--color-bronze-accent);
+  --color-background: var(--color-bg-void);
+  --color-foreground: var(--color-text-stardust);
+  --color-muted: var(--color-nebula-purple-2);
+  --color-border: var(--color-border-cosmic);
+
+  /* Typography Scale */
+  --font-display: "Cinzel Decorative", serif;
+  --font-heading: "Cormorant Garamond", serif;
+  --font-body: "Inter", sans-serif;
+}
+
+:root {
+  /* Core Backgrounds */
+  --bg-void: #06080C;
+  --nebula-purple-1: #130D2A;
+  --nebula-purple-2: #231847;
+
+  /* Accent Colors */
+  --gold-primary: #D4AF37;
+  --bronze-accent: #9A7B38;
+
+  /* Text & Borders */
+  --text-stardust: #E2E8F0;
+  --border-cosmic-blue: #1E293B;
+
+  /* Status Colors */
+  --status-active: #22c55e;
+  --status-full: #ef4444;
+  --status-waitlist: #f59e0b;
+
+  /* Current background for fallback */
+  --background: var(--bg-void);
+  --foreground: var(--text-stardust);
+}
+
+/* --- Base Styles --- */
+* {
+  border-color: var(--border-cosmic-blue);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg-void);
+  color: var(--text-stardust);
+  font-family: "Inter", system-ui, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* --- Typography Classes --- */
+.font-display {
+  font-family: "Cinzel Decorative", serif;
+}
+
+.font-heading {
+  font-family: "Cormorant Garamond", serif;
+}
+
+.font-body {
+  font-family: "Inter", sans-serif;
+}
+
+/* --- Glassmorphism --- */
+.glass {
+  background: rgba(19, 13, 42, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 41, 59, 0.5);
+}
+
+.glass-dark {
+  background: rgba(6, 8, 12, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+/* --- Glow Effects --- */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+.glow-gold-sm {
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);
+}
+
+/* --- Gradient Overlays --- */
+.gradient-cosmic {
+  background: linear-gradient(180deg, var(--nebula-purple-1) 0%, var(--bg-void) 100%);
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--bronze-accent) 100%);
+}
+
+/* --- Nebula Backgrounds --- */
+.bg-nebula {
+  background: radial-gradient(ellipse at top, var(--nebula-purple-1) 0%, var(--bg-void) 60%);
+}
+
+.bg-cosmic-card {
+  background: var(--nebula-purple-2);
+  border: 1px solid var(--border-cosmic-blue);
+}
+
+/* --- Animation Keyframes --- */
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.6);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes starfield-twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* --- Button Styles --- */
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--bronze-accent) 100%);
+  color: var(--bg-void);
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--gold-primary);
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--gold-primary);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+/* --- Status Badges --- */
+.badge-active {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid #22c55e;
+}
+
+.badge-full {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.badge-waitlist {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+}
+
+.badge-open {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid #22c55e;
+}
+
+.badge-closed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+/* --- Card Styles --- */
+.card-cosmic {
+  background: var(--nebula-purple-2);
+  border: 1px solid var(--border-cosmic-blue);
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.card-cosmic:hover {
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+  transform: translateY(-4px);
+}
+
+/* --- Input Styles --- */
+.input-cosmic {
+  background: rgba(19, 13, 42, 0.8);
+  border: 1px solid var(--border-cosmic-blue);
+  color: var(--text-stardust);
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.input-cosmic:focus {
+  outline: none;
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+.input-cosmic::placeholder {
+  color: rgba(226, 232, 240, 0.5);
+}
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-cosmic-blue);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bronze-accent);
+}
+
+/* --- Reduced Motion Support --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* --- Responsive Utilities --- */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    display: none;
+  }
+}
+
+/* --- Section Spacing --- */
+.section-padding {
+  padding: 5rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .section-padding {
+    padding: 7rem 2rem;
+  }
+}
+
+/* --- Container --- */
+.container-cosmic {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@media (min-width: 768px) {
+  .container-cosmic {
+    padding: 0 2rem;
+  }
+}
+
+/* --- Divider --- */
+.divider-cosmic {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-cosmic-blue), transparent);
+}
