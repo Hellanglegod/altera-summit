@@ -4,8 +4,12 @@
 export const ADMIN_ROUTE = process.env.ADMIN_ROUTE || "stellar-gateway-x7k2m9";
 
 // Allowed admin roles
-export const ALLOWED_ROLES = ["super_admin", "director_registrations", "committee_director"] as const;
-export type AdminRole = (typeof ALLOWED_ROLES)[number];
+export const ALLOWED_ROLES = [
+  "super_admin",
+  "director_registrations",
+  "committee_director",
+] as const;
+export type AdminRole = string;
 
 // Session configuration
 export const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
@@ -32,12 +36,15 @@ export const PUBLIC_PATHS = [
 export function requiresAuth(path: string): boolean {
   return PROTECTED_PATHS.some(
     (protectedPath) =>
-      path === protectedPath || path.startsWith(`${protectedPath}/`)
+      path === protectedPath || path.startsWith(`${protectedPath}/`),
   );
 }
 
 // Function to check if user has required role
-export function hasRequiredRole(userRole: string | undefined, requiredRole: AdminRole): boolean {
+export function hasRequiredRole(
+  userRole: string | undefined,
+  requiredRole: AdminRole,
+): boolean {
   if (!userRole) return false;
   return userRole === "super_admin" || userRole === requiredRole;
 }

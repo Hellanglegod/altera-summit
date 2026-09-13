@@ -38,7 +38,7 @@ const emptyItemForm: Omit<ScheduleItem, "id"> = {
 };
 
 export default function AdminSchedulePage() {
-  const { role } = useAdminAuth();
+  const { hasPermission } = useAdminAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeDay, setActiveDay] = useState<number>(1);
@@ -51,7 +51,7 @@ export default function AdminSchedulePage() {
     text: string;
   } | null>(null);
 
-  const canEdit = role === "super_admin";
+  const canEdit = hasPermission("schedule.manage");
 
   useEffect(() => {
     fetchItems();
@@ -91,8 +91,8 @@ export default function AdminSchedulePage() {
 
       setItems((prev) =>
         prev.map((i) =>
-          i.id === item.id ? { ...i, is_active: !item.is_active } : i
-        )
+          i.id === item.id ? { ...i, is_active: !item.is_active } : i,
+        ),
       );
     } catch (error) {
       console.error("Error toggling item:", error);
@@ -148,12 +148,37 @@ export default function AdminSchedulePage() {
     if (!confirm(`Delete "${item.title}" from Day ${item.day}?`)) return;
 
     try {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from("schedule_items")
         .delete()
         .eq("id", item.id);
-      if (error) throw error;
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      if (deleteError) throw deleteError;
+
+      // Get remaining items of the same day and reorder them
+      const remainingOfDay = items
+        .filter((i) => i.id !== item.id && i.day === item.day)
+        .sort((a, b) => a.display_order - b.display_order);
+
+      // Update display_order for remaining items of the same day
+      for (let i = 0; i < remainingOfDay.length; i++) {
+        const { error: updateError } = await supabase
+          .from("schedule_items")
+          .update({ display_order: i + 1 })
+          .eq("id", remainingOfDay[i].id);
+        if (updateError) throw updateError;
+      }
+
+      // Update local state - keep other day's items, update reordered day items
+      setItems((prev) => {
+        const withoutDeleted = prev.filter((i) => i.id !== item.id);
+        const otherDays = withoutDeleted.filter((i) => i.day !== item.day);
+        const sameDayReordered = remainingOfDay.map((i, idx) => ({
+          ...i,
+          display_order: idx + 1,
+        }));
+        return [...otherDays, ...sameDayReordered];
+      });
+
       setStatusMessage({ type: "success", text: "Item deleted." });
       setTimeout(() => setStatusMessage(null), 3000);
     } catch (error) {

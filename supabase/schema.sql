@@ -136,8 +136,64 @@ CREATE TABLE IF NOT EXISTS schedule_items (
 );
 
 -- ============================================
+-- ADMIN ROLES, ASSIGNMENTS, AND APPROVALS
+-- ============================================
+CREATE TABLE IF NOT EXISTS admin_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_system BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_role_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE RESTRICT,
+    assigned_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_action_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    requested_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('insert', 'update', 'delete')),
+    resource VARCHAR(100) NOT NULL,
+    record_id UUID,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_by UUID REFERENCES auth.users(id),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    review_note TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO admin_roles (name, description, permissions, is_system)
+VALUES
+    ('super_admin', 'Full control over the summit administration.', '["*"]', true),
+    ('director_registrations', 'Manage applications and portal settings.', '["applications.read", "applications.manage", "portals.manage"]', true),
+    ('committee_director', 'Manage committee content.', '["committees.read", "committees.manage"]', true)
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================
 -- ROW LEVEL SECURITY POLICIES
 -- ============================================
+
+-- Return all role claims so policies accept roles from either metadata object.
+CREATE OR REPLACE FUNCTION public.jwt_role()
+RETURNS TEXT[]
+LANGUAGE SQL
+STABLE
+AS $$
+    SELECT ARRAY_REMOVE(ARRAY[
+        auth.jwt() -> 'app_metadata' ->> 'role',
+        auth.jwt() -> 'user_metadata' ->> 'role'
+    ], NULL);
+$$;
 
 -- Enable RLS on all tables
 ALTER TABLE portal_settings ENABLE ROW LEVEL SECURITY;
@@ -147,91 +203,124 @@ ALTER TABLE form_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_role_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_action_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT COALESCE(
+        auth.jwt() -> 'app_metadata' ->> 'role' = 'super_admin'
+        OR auth.jwt() -> 'user_metadata' ->> 'role' = 'super_admin'
+        OR EXISTS (
+            SELECT 1 FROM public.admin_role_assignments a
+            JOIN public.admin_roles r ON r.id = a.role_id
+            WHERE a.user_id = auth.uid() AND r.name = 'super_admin'
+        ), false
+    );
+$$;
+
+CREATE POLICY "Super admins manage role definitions" ON admin_roles
+    FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+CREATE POLICY "Authenticated users can read role definitions" ON admin_roles
+    FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments
+    FOR SELECT TO authenticated USING (user_id = auth.uid() OR is_super_admin());
+CREATE POLICY "Super admins manage role assignments" ON admin_role_assignments
+    FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+CREATE POLICY "Admins can read action requests" ON admin_action_requests
+    FOR SELECT TO authenticated USING (requested_by = auth.uid() OR is_super_admin());
+CREATE POLICY "Admins can request actions" ON admin_action_requests
+    FOR INSERT TO authenticated WITH CHECK (requested_by = auth.uid());
+CREATE POLICY "Super admins review actions" ON admin_action_requests
+    FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
 
 -- Portal Settings - Public read, Auth write
 CREATE POLICY "Public can read portal settings" ON portal_settings
     FOR SELECT USING (true);
 
 CREATE POLICY "Admins can update portal settings" ON portal_settings
-    FOR UPDATE USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin', 'director_registrations')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[]);
 
 -- Committees - Public read, Auth write
 CREATE POLICY "Public can read active committees" ON committees
     FOR SELECT USING (is_active = true);
 
 CREATE POLICY "Admins can manage committees" ON committees
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin', 'committee_director')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin', 'committee_director']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin', 'committee_director']::TEXT[]);
 
 -- Secretariat Members - Public read, Auth write
 CREATE POLICY "Public can read secretariat" ON secretariat_members
     FOR SELECT USING (is_active = true);
 
 CREATE POLICY "Admins can manage secretariat" ON secretariat_members
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
--- Form Submissions - Auth read/write only
+-- Form Submissions - Public create, admins read/write
+CREATE POLICY "Public can submit applications" ON form_submissions
+    FOR INSERT TO anon, authenticated
+    WITH CHECK (status = 'Submitted');
+
 CREATE POLICY "Admins can manage submissions" ON form_submissions
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin', 'director_registrations')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[]);
 
 -- Event Config - Public read, Auth write
 CREATE POLICY "Public can read event config" ON event_config
     FOR SELECT USING (true);
 
 CREATE POLICY "Admins can update event config" ON event_config
-    FOR UPDATE USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
--- Custom Forms - Auth read/write
+-- Custom Forms - Public read of active forms, Auth write
+CREATE POLICY "Public can read active custom forms" ON custom_forms
+    FOR SELECT TO anon, authenticated
+    USING (is_active = true);
+
 CREATE POLICY "Admins can manage custom forms" ON custom_forms
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
 -- Schedule Items - Public read, Auth write
 CREATE POLICY "Public can read schedule" ON schedule_items
     FOR SELECT USING (is_active = true);
 
 CREATE POLICY "Admins can manage schedule" ON schedule_items
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE email = auth.jwt() ->> 'email'
-            AND raw_app_meta_data ->> 'role' IN ('super_admin')
-        )
-    );
+    FOR ALL TO authenticated
+    USING (jwt_role() && ARRAY['super_admin']::TEXT[])
+    WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
+
+-- Enable realtime updates for public content and submissions.
+DO $$
+DECLARE
+    table_name TEXT;
+BEGIN
+    FOREACH table_name IN ARRAY ARRAY[
+        'portal_settings', 'committees', 'secretariat_members',
+        'form_submissions', 'event_config', 'custom_forms', 'schedule_items'
+    ] LOOP
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_publication_tables
+            WHERE pubname = 'supabase_realtime'
+              AND schemaname = 'public'
+              AND tablename = table_name
+        ) THEN
+            EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', table_name);
+        END IF;
+    END LOOP;
+END;
+$$;
 
 -- ============================================
 -- INSERT DEFAULT DATA

@@ -26,11 +26,14 @@ export function Schedule() {
         if (error) throw error;
 
         // Group by day
-        const grouped = (data || []).reduce((acc, item) => {
-          if (!acc[item.day]) acc[item.day] = [];
-          acc[item.day].push(item);
-          return acc;
-        }, {} as { [key: number]: ScheduleItem[] });
+        const grouped = (data || []).reduce(
+          (acc, item) => {
+            if (!acc[item.day]) acc[item.day] = [];
+            acc[item.day].push(item);
+            return acc;
+          },
+          {} as { [key: number]: ScheduleItem[] },
+        );
 
         setScheduleByDay(grouped);
       } catch (error) {
@@ -43,13 +46,14 @@ export function Schedule() {
     fetchSchedule();
   }, []);
 
-  const days = Object.keys(scheduleByDay)
-    .map(Number)
-    .sort();
+  const days = Object.keys(scheduleByDay).map(Number).sort();
   const currentDaySchedule = scheduleByDay[activeDay] || [];
 
   return (
-    <section id="schedule" className="py-24 relative overflow-hidden">
+    <section
+      id="schedule"
+      className="section-shell relative overflow-hidden border-t border-border-cosmic-blue/40"
+    >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-nebula-purple-1/50 via-transparent to-nebula-purple-1/50" />
 
@@ -60,7 +64,7 @@ export function Schedule() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-10"
         >
           <span className="inline-block px-4 py-2 rounded-full border border-gold-primary/30 bg-gold-primary/10 text-gold-primary text-sm font-medium mb-4">
             Conference Agenda
@@ -69,8 +73,8 @@ export function Schedule() {
             Schedule
           </h2>
           <p className="text-text-stardust/80 max-w-2xl mx-auto text-lg">
-            A meticulously crafted timeline of sessions, debates, and
-            ceremonies across three days of diplomatic excellence.
+            A meticulously crafted timeline of sessions, debates, and ceremonies
+            across three days of diplomatic excellence.
           </p>
         </motion.div>
 
@@ -81,13 +85,13 @@ export function Schedule() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex justify-center gap-3 mb-12"
+            className="flex flex-wrap justify-center gap-3 mb-10"
           >
             {days.map((day) => (
               <button
                 key={day}
                 onClick={() => setActiveDay(day)}
-                className={`px-8 py-3 rounded-lg font-medium transition-all duration-300 flex items-center gap-2 ${
+                className={`px-4 sm:px-8 py-2.5 sm:py-3 rounded-lg font-medium transition-all duration-300 flex items-center gap-2 ${
                   activeDay === day
                     ? "bg-gold-primary text-bg-void shadow-lg shadow-gold-primary/20"
                     : "bg-nebula-purple-2 text-text-stardust/70 hover:bg-nebula-purple-1 hover:text-text-stardust border border-border-cosmic-blue"
@@ -131,9 +135,9 @@ export function Schedule() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 * idx }}
-                className="card-cosmic p-6 hover:border-gold-primary/50 transition-all duration-300 group"
+                className="card-cosmic p-5 sm:p-6 hover:border-gold-primary/50 transition-all duration-300 group relative"
               >
-                <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex flex-col md:flex-row gap-6 relative z-10">
                   {/* Time Badge */}
                   <div className="flex-shrink-0">
                     <div className="w-20 h-20 rounded-lg bg-gold-primary/10 border border-gold-primary/20 flex flex-col items-center justify-center group-hover:bg-gold-primary/20 transition-colors">
@@ -164,7 +168,7 @@ export function Schedule() {
 
                   {/* Connector Line (except last item) */}
                   {idx < currentDaySchedule.length - 1 && (
-                    <div className="hidden md:block absolute left-[52px] w-0.5 h-full bg-border-cosmic-blue translate-y-20" />
+                    <div className="hidden md:block absolute left-[6.5rem] top-[5.5rem] bottom-[-1.5rem] w-px bg-border-cosmic-blue" />
                   )}
                 </div>
               </motion.div>

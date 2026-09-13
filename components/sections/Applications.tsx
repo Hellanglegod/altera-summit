@@ -1,16 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PortalSettings } from "@/types";
-import { Users, Award, Crown, ExternalLink, Lock, CheckCircle } from "lucide-react";
+import {
+  Users,
+  Award,
+  Crown,
+  ExternalLink,
+  Lock,
+  CheckCircle,
+} from "lucide-react";
 import { motion } from "framer-motion";
 
 const trackConfig = {
   delegate: {
     icon: Users,
     title: "Delegate Applications",
-    description: "Join us as a delegate and represent nations on the global stage",
+    description:
+      "Join us as a delegate and represent nations on the global stage",
     features: [
       "Access to all committee sessions",
       "Participate in voting and resolutions",
@@ -82,11 +91,11 @@ export function Applications() {
           if (payload.eventType === "UPDATE") {
             setPortals((prev) =>
               prev.map((p) =>
-                p.id === payload.new.id ? (payload.new as PortalSettings) : p
-              )
+                p.id === payload.new.id ? (payload.new as PortalSettings) : p,
+              ),
             );
           }
-        }
+        },
       )
       .subscribe();
 
@@ -97,19 +106,6 @@ export function Applications() {
 
   const getPortalByType = (type: "delegate" | "chair" | "secretariat") => {
     return portals.find((p) => p.portal_type === type);
-  };
-
-  const handleApply = (portal: PortalSettings) => {
-    if (!portal.is_active) return;
-
-    if (portal.form_mode === "google_form" || portal.form_mode === "external_link") {
-      if (portal.form_url) {
-        window.open(portal.form_url, "_blank", "noopener,noreferrer");
-      }
-    } else if (portal.form_mode === "custom_builder") {
-      // Navigate to custom form page (to be built)
-      window.location.href = `/apply/${portal.portal_type}`;
-    }
   };
 
   const containerVariants = {
@@ -134,7 +130,10 @@ export function Applications() {
   };
 
   return (
-    <section id="applications" className="py-24 relative overflow-hidden">
+    <section
+      id="applications"
+      className="section-shell relative overflow-hidden border-t border-border-cosmic-blue/40"
+    >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-nebula-purple-1/30 to-transparent" />
 
@@ -145,7 +144,7 @@ export function Applications() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-10"
         >
           <span className="inline-block px-4 py-2 rounded-full border border-gold-primary/30 bg-gold-primary/10 text-gold-primary text-sm font-medium mb-4">
             Join the Summit
@@ -165,7 +164,7 @@ export function Applications() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12"
+          className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6 mb-10"
         >
           {(["delegate", "chair", "secretariat"] as const).map((type) => {
             const config = trackConfig[type];
@@ -176,7 +175,7 @@ export function Applications() {
               <motion.div
                 key={type}
                 variants={cardVariants}
-                className={`card-cosmic p-8 relative group ${
+                className={`card-cosmic p-5 sm:p-8 relative group ${
                   portal?.is_active
                     ? "hover:border-gold-primary/50"
                     : "opacity-80"
@@ -205,8 +204,8 @@ export function Applications() {
                     config.color === "blue"
                       ? "bg-blue-500/10 border border-blue-500/20"
                       : config.color === "purple"
-                      ? "bg-purple-500/10 border border-purple-500/20"
-                      : "bg-gold-primary/10 border border-gold-primary/20"
+                        ? "bg-purple-500/10 border border-purple-500/20"
+                        : "bg-gold-primary/10 border border-gold-primary/20"
                   }`}
                 >
                   <IconComponent
@@ -215,8 +214,8 @@ export function Applications() {
                       config.color === "blue"
                         ? "text-blue-400"
                         : config.color === "purple"
-                        ? "text-purple-400"
-                        : "text-gold-primary"
+                          ? "text-purple-400"
+                          : "text-gold-primary"
                     }
                   />
                 </div>
@@ -249,13 +248,13 @@ export function Applications() {
                 {isLoading ? (
                   <div className="h-11 bg-nebula-purple-1 animate-pulse rounded-lg" />
                 ) : portal?.is_active ? (
-                  <button
-                    onClick={() => handleApply(portal)}
+                  <Link
+                    href={`/apply/${portal.portal_type}`}
                     className="w-full btn-primary flex items-center justify-center gap-2"
                   >
                     Apply Now
                     <ExternalLink size={18} />
-                  </button>
+                  </Link>
                 ) : (
                   <div className="p-4 rounded-lg bg-nebula-purple-1 border border-border-cosmic-blue">
                     <p className="text-sm text-text-stardust/70 text-center">

@@ -53,31 +53,33 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const emptyCommitteeForm: Omit<Committee, "id" | "created_at" | "updated_at"> = {
-  name: "",
-  abbreviation: "",
-  agenda: "",
-  category: "Flagship",
-  status: "active",
-  is_active: true,
-  display_order: 1,
-  chair_name: "",
-  chair_photo_url: "",
-  cochair_name: "",
-  cochair_photo_url: "",
-  emblem_url: "",
-  study_guide_url: "",
-  matrix_url: "",
-};
+const emptyCommitteeForm: Omit<Committee, "id" | "created_at" | "updated_at"> =
+  {
+    name: "",
+    abbreviation: "",
+    agenda: "",
+    category: "Flagship",
+    status: "active",
+    is_active: true,
+    display_order: 1,
+    chair_name: "",
+    chair_photo_url: "",
+    cochair_name: "",
+    cochair_photo_url: "",
+    emblem_url: "",
+    study_guide_url: "",
+    matrix_url: "",
+  };
 
 export default function AdminCommitteesPage() {
-  const { role } = useAdminAuth();
+  const { hasPermission } = useAdminAuth();
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [editingCommittee, setEditingCommittee] = useState<
-    (Omit<Committee, "id" | "created_at" | "updated_at"> & { id?: string }) | null
+    | (Omit<Committee, "id" | "created_at" | "updated_at"> & { id?: string })
+    | null
   >(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
@@ -85,8 +87,7 @@ export default function AdminCommitteesPage() {
     text: string;
   } | null>(null);
 
-  const canEdit =
-    role === "super_admin" || role === "committee_director";
+  const canEdit = hasPermission("committees.manage");
 
   useEffect(() => {
     fetchCommittees();
@@ -129,8 +130,8 @@ export default function AdminCommitteesPage() {
 
       setCommittees((prev) =>
         prev.map((c) =>
-          c.id === committee.id ? { ...c, is_active: updatedStatus } : c
-        )
+          c.id === committee.id ? { ...c, is_active: updatedStatus } : c,
+        ),
       );
 
       setStatusMessage({
@@ -151,7 +152,7 @@ export default function AdminCommitteesPage() {
 
   async function handleStatusChange(
     committeeId: string,
-    newStatus: CommitteeStatus
+    newStatus: CommitteeStatus,
   ) {
     if (!canEdit) return;
     try {
@@ -167,8 +168,8 @@ export default function AdminCommitteesPage() {
 
       setCommittees((prev) =>
         prev.map((c) =>
-          c.id === committeeId ? { ...c, status: newStatus } : c
-        )
+          c.id === committeeId ? { ...c, status: newStatus } : c,
+        ),
       );
 
       setStatusMessage({
@@ -263,21 +264,51 @@ export default function AdminCommitteesPage() {
     if (!canEdit) return;
     if (
       !confirm(
-        `Are you sure you want to delete ${committee.abbreviation} - ${committee.name}?`
+        `Are you sure you want to delete ${committee.abbreviation} - ${committee.name}?`,
       )
     ) {
       return;
     }
 
     try {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from("committees")
         .delete()
         .eq("id", committee.id);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
 
-      setCommittees((prev) => prev.filter((c) => c.id !== committee.id));
+      // Get remaining committees and reorder them
+      const remaining = committees
+        .filter((c) => c.id !== committee.id)
+        .sort((a, b) => a.display_order - b.display_order);
+
+      // Update display_order for all remaining items
+      const reorderUpdates = remaining.map((c, index) => ({
+        id: c.id,
+        display_order: index + 1,
+      }));
+
+      // Batch update the display orders
+      for (const update of reorderUpdates) {
+        const { error: updateError } = await supabase
+          .from("committees")
+          .update({
+            display_order: update.display_order,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", update.id);
+        if (updateError) throw updateError;
+      }
+
+      // Update local state with reordered list
+      setCommittees(
+        remaining.map((c, index) => ({
+          ...c,
+          display_order: index + 1,
+        })),
+      );
+
       setStatusMessage({
         type: "success",
         text: `Deleted ${committee.abbreviation}`,
@@ -511,7 +542,7 @@ export default function AdminCommitteesPage() {
                       onChange={(e) =>
                         handleStatusChange(
                           committee.id,
-                          e.target.value as CommitteeStatus
+                          e.target.value as CommitteeStatus,
                         )
                       }
                       className={`text-xs font-medium px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}

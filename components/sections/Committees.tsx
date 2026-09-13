@@ -6,7 +6,12 @@ import { Committee } from "@/types";
 import { Download, ExternalLink, Users } from "lucide-react";
 import { motion } from "framer-motion";
 
-type CategoryFilter = "All" | "Flagship" | "Crisis" | "Conventional" | "Regional";
+type CategoryFilter =
+  | "All"
+  | "Flagship"
+  | "Crisis"
+  | "Conventional"
+  | "Regional";
 
 export function Committees() {
   const [committees, setCommittees] = useState<Committee[]>([]);
@@ -69,7 +74,10 @@ export function Committees() {
   };
 
   return (
-    <section id="committees" className="py-24 relative overflow-hidden">
+    <section
+      id="committees"
+      className="section-shell relative overflow-hidden border-t border-border-cosmic-blue/40"
+    >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-nebula-purple-1/50 to-transparent" />
 
@@ -80,7 +88,7 @@ export function Committees() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-10"
         >
           <span className="inline-block px-4 py-2 rounded-full border border-gold-primary/30 bg-gold-primary/10 text-gold-primary text-sm font-medium mb-4">
             Council Chambers
@@ -89,8 +97,8 @@ export function Committees() {
             Our Committees
           </h2>
           <p className="text-text-stardust/80 max-w-2xl mx-auto text-lg">
-            Explore {committees.length} meticulously crafted committees spanning flagship crises,
-            regional forums, and conventional councils.
+            Explore {committees.length} meticulously crafted committees spanning
+            flagship crises, regional forums, and conventional councils.
           </p>
         </motion.div>
 
@@ -100,13 +108,13 @@ export function Committees() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex flex-wrap justify-center gap-3 mb-12"
+          className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-10"
         >
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => setActiveFilter(category)}
-              className={`px-6 py-2.5 rounded-full font-medium transition-all duration-300 ${
+              className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-sm sm:text-base font-medium transition-all duration-300 ${
                 activeFilter === category
                   ? "bg-gold-primary text-bg-void shadow-lg shadow-gold-primary/20"
                   : "bg-nebula-purple-2 text-text-stardust/70 hover:bg-nebula-purple-1 hover:text-text-stardust border border-border-cosmic-blue"
@@ -121,10 +129,7 @@ export function Committees() {
         {isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="card-cosmic p-6 animate-pulse"
-              >
+              <div key={i} className="card-cosmic p-6 animate-pulse">
                 <div className="w-24 h-24 bg-nebula-purple-1 rounded-lg mb-4" />
                 <div className="h-6 bg-nebula-purple-1 rounded mb-3 w-3/4" />
                 <div className="h-4 bg-nebula-purple-1 rounded mb-2" />
@@ -141,13 +146,13 @@ export function Committees() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
           >
             {filteredCommittees.map((committee) => (
               <motion.div
                 key={committee.id}
                 variants={cardVariants}
-                className="card-cosmic p-6 hover:border-gold-primary/50 transition-all duration-300 group"
+                className="card-cosmic p-5 sm:p-6 hover:border-gold-primary/50 transition-all duration-300 group"
               >
                 {/* Emblem */}
                 {committee.emblem_url ? (
@@ -241,15 +246,15 @@ export function Committees() {
                         committee.status === "active"
                           ? "badge-active"
                           : committee.status === "allocation_full"
-                          ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-                          : "badge-closed"
+                            ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                            : "badge-closed"
                       }`}
                     >
                       {committee.status === "active"
                         ? "Open"
                         : committee.status === "allocation_full"
-                        ? "Allocation Full"
-                        : "Waitlist Only"}
+                          ? "Allocation Full"
+                          : "Waitlist Only"}
                     </span>
                   </div>
                 )}

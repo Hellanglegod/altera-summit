@@ -15,14 +15,42 @@ import {
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+type ApplicationTrack = "delegate" | "chair" | "secretariat";
+
+const applicationTracks: ApplicationTrack[] = [
+  "delegate",
+  "chair",
+  "secretariat",
+];
+
+function isApplicationTrack(
+  value: string | undefined,
+): value is ApplicationTrack {
+  return applicationTracks.includes(value as ApplicationTrack);
+}
+
 export default function ApplyPage() {
   const params = useParams();
   const router = useRouter();
-  const track = params.track as "delegate" | "chair" | "secretariat";
+  const trackParam = Array.isArray(params.track)
+    ? params.track[0]
+    : params.track;
+  const track = isApplicationTrack(trackParam) ? trackParam : null;
 
   const [form, setForm] = useState<CustomForm | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [session, setSession] = useState<
+    | null
+    | Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
+  >(null);
+  const [authMode, setAuthMode] = useState<"signUp" | "signIn">("signUp");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<{
@@ -34,9 +62,47 @@ export default function ApplyPage() {
     fetchForm();
   }, [track]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (isMounted) setSession(currentSession);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (isMounted) setSession(currentSession);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   async function fetchForm() {
     setIsLoading(true);
+    setForm(null);
+
+    if (!track) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
+      const { data: portal, error: portalError } = await supabase
+        .from("portal_settings")
+        .select("is_active, form_mode")
+        .eq("portal_type", track)
+        .maybeSingle();
+
+      if (portalError) throw portalError;
+      if (!portal?.is_active || portal.form_mode !== "custom_builder") {
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("custom_forms")
         .select("*")
@@ -57,7 +123,11 @@ export default function ApplyPage() {
     const newErrors: Record<string, string> = {};
 
     form?.fields.forEach((field) => {
-      if (field.required && !formData[field.id]) {
+      const value = formData[field.id];
+
+      if (field.required && field.type === "file") {
+        newErrors[field.id] = "File uploads are not currently supported";
+      } else if (field.required && isEmptyFieldValue(value)) {
         newErrors[field.id] = `${field.label} is required`;
       }
     });
@@ -66,9 +136,85 @@ export default function ApplyPage() {
     return Object.keys(newErrors).length === 0;
   }
 
+  function isEmptyFieldValue(value: unknown): boolean {
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === "string") return value.trim().length === 0;
+    return value === undefined || value === null || value === false;
+  }
+
+  async function handleAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+
+    const trimmedEmail = authEmail.trim();
+    if (!trimmedEmail || !authPassword) {
+      setAuthError("Please enter both your email and password.");
+      return;
+    }
+
+    if (authMode === "signUp" && authPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (authMode === "signUp" && authPassword !== authConfirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const request =
+        authMode === "signUp"
+          ? supabase.auth.signUp({
+              email: trimmedEmail,
+              password: authPassword,
+            })
+          : supabase.auth.signInWithPassword({
+              email: trimmedEmail,
+              password: authPassword,
+            });
+
+      const { data, error } = await request;
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      if (authMode === "signUp") {
+        if (data.session) {
+          setSession(data.session);
+          setAuthNotice(
+            "Account created successfully. You can continue with your application.",
+          );
+        } else {
+          setAuthNotice(
+            "Account created successfully. Please check your email to confirm your account before continuing.",
+          );
+        }
+      } else if (data.session) {
+        setSession(data.session);
+        setAuthNotice("Welcome back. You can continue with your application.");
+      }
+
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthConfirmPassword("");
+    } catch (error) {
+      setAuthError(
+        "Something went wrong while creating your account. Please try again.",
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validateForm() || !form) return;
+    if (!validateForm() || !form || !track) return;
 
     setIsSubmitting(true);
     setSubmitStatus(null);
@@ -76,23 +222,44 @@ export default function ApplyPage() {
     try {
       // Extract core applicant details
       const nameField = form.fields.find(
-        (f) =>
-          f.label.toLowerCase().includes("name") && f.type === "text"
+        (f) => f.label.toLowerCase().includes("name") && f.type === "text",
       );
       const emailField = form.fields.find(
-        (f) =>
-          f.label.toLowerCase().includes("email") && f.type === "text"
+        (f) => f.label.toLowerCase().includes("email") && f.type === "text",
       );
       const phoneField = form.fields.find(
-        (f) =>
-          f.label.toLowerCase().includes("phone") && f.type === "text"
+        (f) => f.label.toLowerCase().includes("phone") && f.type === "text",
       );
+
+      const applicantName = nameField && formData[nameField.id];
+      const applicantEmail = emailField && formData[emailField.id];
+      const emailIsValid =
+        typeof applicantEmail === "string" &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicantEmail.trim());
+
+      if (!nameField || isEmptyFieldValue(applicantName)) {
+        setSubmitStatus({
+          type: "error",
+          message: "Please provide your name before submitting.",
+        });
+        return;
+      }
+
+      if (!emailField || !emailIsValid) {
+        setSubmitStatus({
+          type: "error",
+          message: "Please provide a valid email address before submitting.",
+        });
+        return;
+      }
 
       const { error } = await supabase.from("form_submissions").insert({
         portal_type: track,
-        applicant_name: nameField ? formData[nameField.id] : "Unknown",
-        applicant_email: emailField ? formData[emailField.id] : "no-email@provided.com",
-        applicant_phone: phoneField ? formData[phoneField.id] : null,
+        applicant_name: String(applicantName).trim(),
+        applicant_email: String(applicantEmail).trim(),
+        applicant_phone: phoneField
+          ? String(formData[phoneField.id] || "").trim() || null
+          : null,
         submission_data: formData,
         status: "Submitted",
       });
@@ -125,7 +292,7 @@ export default function ApplyPage() {
   }
 
   function renderField(field: FormField) {
-    const value = formData[field.id] || "";
+    const value = formData[field.id] ?? "";
     const error = errors[field.id];
 
     const commonClasses = `input-cosmic w-full ${
@@ -219,9 +386,9 @@ export default function ApplyPage() {
                 <input
                   type="checkbox"
                   value={opt}
-                  checked={(value as string[])?.includes(opt) || false}
+                  checked={Array.isArray(value) && value.includes(opt)}
                   onChange={(e) => {
-                    const currentValues = (value as string[]) || [];
+                    const currentValues = Array.isArray(value) ? value : [];
                     const newValues = e.target.checked
                       ? [...currentValues, opt]
                       : currentValues.filter((v) => v !== opt);
@@ -288,6 +455,154 @@ export default function ApplyPage() {
     );
   }
 
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-bg-void flex items-center justify-center p-4 sm:p-6 relative">
+        <StarfieldCanvas starCount={150} showConstellations={true} />
+
+        <div className="relative z-10 w-full max-w-lg">
+          <div className="glass-dark rounded-[28px] border border-gold-primary/25 bg-[radial-gradient(circle_at_top,_rgba(212,175,55,0.14),_transparent_38%),_rgba(6,8,12,0.9)] p-5 sm:p-8 shadow-[0_0_35px_rgba(212,175,55,0.12)] backdrop-blur-xl">
+            <div className="mb-6 text-center">
+              <div className="mb-4 flex items-center justify-center">
+                <Link
+                  href="/applications"
+                  className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-gold-primary/80 transition-colors hover:text-gold-primary"
+                >
+                  <ArrowLeft size={14} />
+                  Back to portals
+                </Link>
+              </div>
+
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-primary/25 bg-gold-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-primary">
+                Application access
+              </div>
+
+              <h1 className="font-display text-3xl font-bold text-gold-primary sm:text-4xl">
+                {authMode === "signUp" ? "Create your account" : "Welcome back"}
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-text-stardust/70">
+                {authMode === "signUp"
+                  ? "Secure your application before continuing for the " +
+                    (track ?? "selected track") +
+                    " track."
+                  : "Sign in to continue your application for the " +
+                    (track ?? "selected track") +
+                    " track."}
+              </p>
+            </div>
+
+            {authError && (
+              <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+                {authError}
+              </div>
+            )}
+
+            {authNotice && (
+              <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                {authNotice}
+              </div>
+            )}
+
+            <div className="mb-6 flex rounded-xl border border-border-cosmic-blue bg-nebula-purple-1/60 p-1">
+              <button
+                type="button"
+                onClick={() => setAuthMode("signUp")}
+                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  authMode === "signUp"
+                    ? "bg-gold-primary text-bg-void shadow-[0_0_20px_rgba(212,175,55,0.35)]"
+                    : "text-text-stardust/70 hover:text-text-stardust"
+                }`}
+              >
+                Sign Up
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("signIn")}
+                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  authMode === "signIn"
+                    ? "bg-gold-primary text-bg-void shadow-[0_0_20px_rgba(212,175,55,0.35)]"
+                    : "text-text-stardust/70 hover:text-text-stardust"
+                }`}
+              >
+                Sign In
+              </button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-text-stardust/80">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                  className="input-cosmic"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-text-stardust/80">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                  className="input-cosmic"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {authMode === "signUp" && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-text-stardust/80">
+                    Confirm password
+                  </label>
+                  <input
+                    type="password"
+                    value={authConfirmPassword}
+                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                    required
+                    className="input-cosmic"
+                    placeholder="Confirm your password"
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="btn-primary flex w-full items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {authLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    {authMode === "signUp"
+                      ? "Creating account..."
+                      : "Signing in..."}
+                  </>
+                ) : authMode === "signUp" ? (
+                  "Create account"
+                ) : (
+                  "Continue to form"
+                )}
+              </button>
+            </form>
+
+            <div className="mt-5 rounded-xl border border-border-cosmic-blue bg-nebula-purple-1/40 p-3 text-center text-xs leading-relaxed text-text-stardust/55">
+              By continuing, you agree to keep your application details secure
+              and use this account only for your summit application.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!form) {
     return (
       <div className="min-h-screen bg-bg-void flex items-center justify-center p-4">
@@ -298,10 +613,15 @@ export default function ApplyPage() {
             Form Not Available
           </h1>
           <p className="text-text-stardust/70 mb-6">
-            The custom application form for <strong className="capitalize">{track}</strong> is not currently active.
-            Please check back later or contact us directly.
+            The custom application form for{" "}
+            <strong className="capitalize">{track ?? "this track"}</strong> is
+            not currently active. Please check back later or contact us
+            directly.
           </p>
-          <Link href="/#applications" className="btn-primary inline-flex items-center gap-2">
+          <Link
+            href="/#applications"
+            className="btn-primary inline-flex items-center gap-2"
+          >
             <ArrowLeft size={18} />
             Back to Applications
           </Link>
@@ -327,7 +647,9 @@ export default function ApplyPage() {
           <h1 className="text-4xl font-display font-bold text-gold-primary mb-3">
             {form.title}
           </h1>
-          <p className="text-text-stardust/80">{form.description}</p>
+          <p className="text-text-stardust/80">
+            {form.description || "Complete the application form below."}
+          </p>
         </div>
 
         {/* Success/Error Message */}

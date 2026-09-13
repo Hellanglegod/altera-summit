@@ -16,11 +16,10 @@ export function About() {
         const { data, error } = await supabase
           .from("event_config")
           .select("*")
-          .limit(1)
-          .single();
+          .limit(1);
 
         if (error) throw error;
-        setEventConfig(data);
+        setEventConfig(data?.[0] || null);
       } catch (error) {
         console.error("Error fetching event config:", error);
       } finally {
@@ -59,7 +58,10 @@ export function About() {
   ];
 
   return (
-    <section id="about" className="py-24 relative overflow-hidden">
+    <section
+      id="about"
+      className="section-shell relative overflow-hidden border-t border-border-cosmic-blue/40"
+    >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-nebula-purple-1/50 via-transparent to-nebula-purple-1/50" />
 
@@ -70,7 +72,7 @@ export function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-10"
         >
           <span className="inline-block px-4 py-2 rounded-full border border-gold-primary/30 bg-gold-primary/10 text-gold-primary text-sm font-medium mb-4">
             About the Summit
@@ -96,7 +98,7 @@ export function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-10"
         >
           {stats.map((stat, idx) => {
             const IconComponent = stat.icon;
@@ -114,10 +116,10 @@ export function About() {
                     stat.color === "blue"
                       ? "bg-blue-500/10 border border-blue-500/20"
                       : stat.color === "purple"
-                      ? "bg-purple-500/10 border border-purple-500/20"
-                      : stat.color === "gold"
-                      ? "bg-gold-primary/10 border border-gold-primary/20"
-                      : "bg-green-500/10 border border-green-500/20"
+                        ? "bg-purple-500/10 border border-purple-500/20"
+                        : stat.color === "gold"
+                          ? "bg-gold-primary/10 border border-gold-primary/20"
+                          : "bg-green-500/10 border border-green-500/20"
                   }`}
                 >
                   <IconComponent
@@ -126,10 +128,10 @@ export function About() {
                       stat.color === "blue"
                         ? "text-blue-400"
                         : stat.color === "purple"
-                        ? "text-purple-400"
-                        : stat.color === "gold"
-                        ? "text-gold-primary"
-                        : "text-green-400"
+                          ? "text-purple-400"
+                          : stat.color === "gold"
+                            ? "text-gold-primary"
+                            : "text-green-400"
                     }
                   />
                 </div>
@@ -147,7 +149,7 @@ export function About() {
         </motion.div>
 
         {/* Vision & Mission */}
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="grid md:grid-cols-2 gap-6 mb-10">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -193,12 +195,12 @@ export function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="card-cosmic p-8"
+          className="card-cosmic p-6 sm:p-6 sm:p-6 sm:p-8"
         >
           <h3 className="font-heading text-2xl font-semibold text-gold-primary mb-6 text-center">
             What Sets Altera Summit Apart
           </h3>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-5 sm:gap-6">
             <div className="text-center">
               <div className="w-12 h-12 rounded-full bg-gold-primary/10 border border-gold-primary/20 flex items-center justify-center mx-auto mb-3">
                 <span className="text-gold-primary font-display text-xl font-bold">
@@ -252,7 +254,7 @@ export function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mt-16 card-cosmic p-8 text-center"
+          className="mt-10 card-cosmic p-6 sm:p-8 text-center"
         >
           <h3 className="font-heading text-2xl font-semibold text-gold-primary mb-4">
             Experience the Summit

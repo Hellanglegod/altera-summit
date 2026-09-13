@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { StarfieldCanvas } from "@/components/ui/StarfieldCanvas";
+import { supabase } from "@/lib/supabase";
 import { getTimeRemaining } from "@/lib/utils";
 
 interface CountdownState {
@@ -20,15 +21,30 @@ export function Hero() {
     minutes: 0,
     seconds: 0,
   });
-
-  // Set event date to a future date (example: 3 months from now)
-  const [eventDate] = useState(() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() + 3);
-    return date;
-  });
+  const [eventDate, setEventDate] = useState<Date | null>(null);
 
   useEffect(() => {
+    async function fetchEventDate() {
+      const { data, error } = await supabase
+        .from("event_config")
+        .select("event_start_at")
+        .limit(1);
+
+      if (error) {
+        console.error("Error fetching event date:", error);
+        return;
+      }
+
+      const eventStartAt = data?.[0]?.event_start_at;
+      if (eventStartAt) setEventDate(new Date(eventStartAt));
+    }
+
+    fetchEventDate();
+  }, []);
+
+  useEffect(() => {
+    if (!eventDate) return;
+
     const updateCountdown = () => {
       const timeRemaining = getTimeRemaining(eventDate);
       setCountdown({
@@ -58,7 +74,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
+    <section className="relative min-h-screen flex items-center justify-center pt-24 sm:pt-20 overflow-hidden px-2 sm:px-0">
       {/* Background starfield */}
       <div className="absolute inset-0">
         <StarfieldCanvas starCount={150} showConstellations={true} />
@@ -70,12 +86,12 @@ export function Hero() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="space-y-6 md:space-y-8"
+          className="space-y-5 sm:space-y-6 md:space-y-8 w-full"
         >
           {/* Eyebrow Badge */}
           <motion.div variants={itemVariants}>
-            <div className="inline-block px-4 py-2 rounded-full bg-nebula-purple-1/50 border border-gold-primary/30 backdrop-blur-sm">
-              <p className="text-sm md:text-base font-body text-gold-primary tracking-wider">
+            <div className="inline-block max-w-full px-3 py-2 sm:px-4 rounded-full bg-nebula-purple-1/50 border border-gold-primary/30 backdrop-blur-sm">
+              <p className="text-[0.68rem] sm:text-sm md:text-base font-body text-gold-primary tracking-wider">
                 ✦ THE ANNUAL MODEL UNITED NATIONS CONFERENCE ✦
               </p>
             </div>
@@ -84,7 +100,7 @@ export function Hero() {
           {/* Main Headline */}
           <motion.h1
             variants={itemVariants}
-            className="font-display text-5xl md:text-7xl lg:text-8xl font-bold text-gold-primary leading-tight"
+            className="font-display text-[clamp(2.8rem,9vw,7rem)] font-bold text-gold-primary leading-[0.96] tracking-tight"
           >
             Forging Destiny
             <br />
@@ -94,7 +110,7 @@ export function Hero() {
           {/* Subheadline */}
           <motion.p
             variants={itemVariants}
-            className="font-heading text-xl md:text-2xl text-text-stardust/80 max-w-3xl mx-auto leading-relaxed"
+            className="font-heading text-base sm:text-xl md:text-2xl text-text-stardust/80 max-w-3xl mx-auto leading-relaxed px-2 sm:px-0"
           >
             An elite Model United Nations conference blending cosmology with
             classical antiquity. Engage in diplomatic discourse, forge global
@@ -102,11 +118,11 @@ export function Hero() {
           </motion.p>
 
           {/* Countdown Timer */}
-          <motion.div variants={itemVariants} className="py-8">
-            <p className="text-sm md:text-base font-body text-text-stardust/60 uppercase tracking-widest mb-6">
+          <motion.div variants={itemVariants} className="py-6 sm:py-8">
+            <p className="text-xs sm:text-sm md:text-base font-body text-text-stardust/60 uppercase tracking-widest mb-4 sm:mb-6">
               Conference Begins In
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-2xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-2xl mx-auto">
               {[
                 { label: "Days", value: countdown.days },
                 { label: "Hours", value: countdown.hours },
@@ -116,14 +132,14 @@ export function Hero() {
                 <motion.div
                   key={item.label}
                   whileHover={{ scale: 1.05 }}
-                  className="relative group"
+                  className="relative group min-w-0"
                 >
                   <div className="absolute inset-0 bg-gold-primary/20 rounded-lg blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative bg-nebula-purple-2/80 border border-gold-primary/50 rounded-lg p-4 md:p-6 backdrop-blur-sm">
-                    <div className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-gold-primary">
+                  <div className="relative bg-nebula-purple-2/80 border border-gold-primary/50 rounded-lg p-3 sm:p-4 md:p-6 backdrop-blur-sm">
+                    <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold text-gold-primary leading-none">
                       {String(item.value).padStart(2, "0")}
                     </div>
-                    <div className="text-xs md:text-sm font-body text-text-stardust/60 uppercase tracking-wider mt-2">
+                    <div className="text-[0.6rem] sm:text-xs md:text-sm font-body text-text-stardust/60 uppercase tracking-wider mt-2">
                       {item.label}
                     </div>
                   </div>
@@ -135,14 +151,17 @@ export function Hero() {
           {/* CTAs */}
           <motion.div
             variants={itemVariants}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 pt-8"
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6 pt-6 sm:pt-8"
           >
-            <Link href="#committees" className="btn-primary text-lg px-8 py-4">
+            <Link
+              href="#committees"
+              className="btn-primary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto"
+            >
               Explore Committees
             </Link>
             <Link
               href="#applications"
-              className="btn-secondary text-lg px-8 py-4"
+              className="btn-secondary text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto"
             >
               Enter Portal
             </Link>

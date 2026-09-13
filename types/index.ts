@@ -1,11 +1,11 @@
 // Database Types for Altera Summit MUN Platform
 
 // Portal Settings - Application Track Configuration
-export type FormMode = 'google_form' | 'custom_builder' | 'external_link';
+export type FormMode = "google_form" | "custom_builder" | "external_link";
 
 export interface PortalSettings {
   id: string;
-  portal_type: 'secretariat' | 'chair' | 'delegate';
+  portal_type: "secretariat" | "chair" | "delegate";
   is_active: boolean;
   form_mode: FormMode;
   form_url: string | null;
@@ -14,10 +14,14 @@ export interface PortalSettings {
 }
 
 // Committee Categories
-export type CommitteeCategory = 'Flagship' | 'Crisis' | 'Conventional' | 'Regional';
+export type CommitteeCategory =
+  | "Flagship"
+  | "Crisis"
+  | "Conventional"
+  | "Regional";
 
 // Committee Status
-export type CommitteeStatus = 'active' | 'allocation_full' | 'waitlist_only';
+export type CommitteeStatus = "active" | "allocation_full" | "waitlist_only";
 
 // Committee
 export interface Committee {
@@ -43,12 +47,19 @@ export interface Committee {
 }
 
 // Application Status Pipeline
-export type ApplicationStatus = 'Submitted' | 'In Review' | 'Shortlisted' | 'Accepted' | 'Confirmed' | 'Rejected';
+export type ApplicationStatus =
+  | "Submitted"
+  | "In Review"
+  | "Shortlisted"
+  | "Accepted"
+  | "Confirmed"
+  | "Rejected";
 
 // Form Submission
 export interface FormSubmission {
   id: string;
-  portal_type: 'secretariat' | 'chair' | 'delegate';
+  portal_type: "secretariat" | "chair" | "delegate";
+  committee_id: string | null;
   applicant_name: string;
   applicant_email: string;
   applicant_phone: string | null;
@@ -95,7 +106,14 @@ export interface EventConfig {
 }
 
 // Custom Form Field Types
-export type FieldType = 'text' | 'textarea' | 'dropdown' | 'radio' | 'file' | 'date' | 'checkbox';
+export type FieldType =
+  | "text"
+  | "textarea"
+  | "dropdown"
+  | "radio"
+  | "file"
+  | "date"
+  | "checkbox";
 
 export interface FormField {
   id: string;
@@ -113,7 +131,7 @@ export interface FormField {
 
 export interface CustomForm {
   id: string;
-  portal_type: 'secretariat' | 'chair' | 'delegate';
+  portal_type: "secretariat" | "chair" | "delegate";
   title: string;
   description: string;
   fields: FormField[];
@@ -123,7 +141,10 @@ export interface CustomForm {
 }
 
 // Admin User / Roles
-export type AdminRole = 'super_admin' | 'director_registrations' | 'committee_director';
+export type AdminRole =
+  | "super_admin"
+  | "director_registrations"
+  | "committee_director";
 
 export interface AdminUser {
   id: string;
@@ -153,7 +174,7 @@ export interface ScheduleDay {
 
 // Application Track Info
 export interface ApplicationTrack {
-  type: 'secretariat' | 'chair' | 'delegate';
+  type: "secretariat" | "chair" | "delegate";
   title: string;
   description: string;
   icon: string;

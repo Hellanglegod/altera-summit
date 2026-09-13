@@ -8,13 +8,13 @@
 /* --- CSS Custom Properties (Design Tokens) --- */
 @theme inline {
   /* Cosmic Color Palette */
-  --color-bg-void: #06080C;
-  --color-nebula-purple-1: #130D2A;
+  --color-bg-void: #06080c;
+  --color-nebula-purple-1: #130d2a;
   --color-nebula-purple-2: #231847;
-  --color-gold-primary: #D4AF37;
-  --color-bronze-accent: #9A7B38;
-  --color-text-stardust: #E2E8F0;
-  --color-border-cosmic: #1E293B;
+  --color-gold-primary: #d4af37;
+  --color-bronze-accent: #9a7b38;
+  --color-text-stardust: #e2e8f0;
+  --color-border-cosmic: #1e293b;
 
   /* Semantic Colors */
   --color-primary: var(--color-gold-primary);
@@ -32,17 +32,17 @@
 
 :root {
   /* Core Backgrounds */
-  --bg-void: #06080C;
-  --nebula-purple-1: #130D2A;
+  --bg-void: #06080c;
+  --nebula-purple-1: #130d2a;
   --nebula-purple-2: #231847;
 
   /* Accent Colors */
-  --gold-primary: #D4AF37;
-  --bronze-accent: #9A7B38;
+  --gold-primary: #d4af37;
+  --bronze-accent: #9a7b38;
 
   /* Text & Borders */
-  --text-stardust: #E2E8F0;
-  --border-cosmic-blue: #1E293B;
+  --text-stardust: #e2e8f0;
+  --border-cosmic-blue: #1e293b;
 
   /* Status Colors */
   --status-active: #22c55e;
@@ -61,6 +61,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -69,6 +70,43 @@ body {
   font-family: "Inter", system-ui, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+section {
+  scroll-margin-top: 5.5rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+span,
+a,
+button,
+label,
+input,
+select,
+textarea {
+  overflow-wrap: anywhere;
 }
 
 /* --- Typography Classes --- */
@@ -122,16 +160,28 @@ body {
 
 /* --- Gradient Overlays --- */
 .gradient-cosmic {
-  background: linear-gradient(180deg, var(--nebula-purple-1) 0%, var(--bg-void) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--nebula-purple-1) 0%,
+    var(--bg-void) 100%
+  );
 }
 
 .gradient-gold {
-  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--bronze-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--gold-primary) 0%,
+    var(--bronze-accent) 100%
+  );
 }
 
 /* --- Nebula Backgrounds --- */
 .bg-nebula {
-  background: radial-gradient(ellipse at top, var(--nebula-purple-1) 0%, var(--bg-void) 60%);
+  background: radial-gradient(
+    ellipse at top,
+    var(--nebula-purple-1) 0%,
+    var(--bg-void) 60%
+  );
 }
 
 .bg-cosmic-card {
@@ -141,7 +191,8 @@ body {
 
 /* --- Animation Keyframes --- */
 @keyframes pulse-gold {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
   }
   50% {
@@ -150,7 +201,8 @@ body {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -159,7 +211,8 @@ body {
 }
 
 @keyframes starfield-twinkle {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
   }
   50% {
@@ -177,7 +230,11 @@ body {
 
 /* --- Button Styles --- */
 .btn-primary {
-  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--bronze-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--gold-primary) 0%,
+    var(--bronze-accent) 100%
+  );
   color: var(--bg-void);
   font-weight: 600;
   padding: 0.75rem 1.5rem;
@@ -319,17 +376,33 @@ body {
   padding: 5rem 1rem;
 }
 
+.section-shell {
+  padding-top: 4.5rem;
+  padding-bottom: 4.5rem;
+}
+
 @media (min-width: 768px) {
   .section-padding {
     padding: 7rem 2rem;
+  }
+
+  .section-shell {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
   }
 }
 
 /* --- Container --- */
 .container-cosmic {
-  max-width: 1280px;
+  width: min(100%, 1280px);
   margin: 0 auto;
   padding: 0 1rem;
+}
+
+@media (max-width: 640px) {
+  .container-cosmic {
+    padding: 0 0.75rem;
+  }
 }
 
 @media (min-width: 768px) {
@@ -341,5 +414,10 @@ body {
 /* --- Divider --- */
 .divider-cosmic {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-cosmic-blue), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--border-cosmic-blue),
+    transparent
+  );
 }

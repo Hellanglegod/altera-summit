@@ -53,7 +53,10 @@ export function Secretariat() {
   };
 
   return (
-    <section id="secretariat" className="py-24 relative overflow-hidden">
+    <section
+      id="secretariat"
+      className="section-shell relative overflow-hidden border-t border-border-cosmic-blue/40"
+    >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-nebula-purple-1/30 to-transparent" />
 
@@ -64,7 +67,7 @@ export function Secretariat() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-10"
         >
           <span className="inline-block px-4 py-2 rounded-full border border-gold-primary/30 bg-gold-primary/10 text-gold-primary text-sm font-medium mb-4">
             Meet the Team
@@ -98,13 +101,13 @@ export function Secretariat() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
           >
             {members.map((member) => (
               <motion.div
                 key={member.id}
                 variants={cardVariants}
-                className="card-cosmic p-6 text-center group hover:border-gold-primary/50 transition-all duration-300"
+                className="card-cosmic p-5 sm:p-6 text-center group hover:border-gold-primary/50 transition-all duration-300"
               >
                 {/* Photo */}
                 <div className="relative w-32 h-32 mx-auto mb-4">

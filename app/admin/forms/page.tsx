@@ -43,7 +43,7 @@ const FIELD_TYPES: {
 const TRACKS = ["delegate", "chair", "secretariat"] as const;
 
 export default function AdminFormsPage() {
-  const { role } = useAdminAuth();
+  const { hasPermission } = useAdminAuth();
   const [forms, setForms] = useState<CustomForm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingForm, setEditingForm] = useState<CustomForm | null>(null);
@@ -53,7 +53,7 @@ export default function AdminFormsPage() {
     text: string;
   } | null>(null);
 
-  const canEdit = role === "super_admin";
+  const canEdit = hasPermission("forms.manage");
 
   useEffect(() => {
     fetchForms();
@@ -140,8 +140,8 @@ export default function AdminFormsPage() {
 
       setForms((prev) =>
         prev.map((f) =>
-          f.id === form.id ? { ...f, is_active: !form.is_active } : f
-        )
+          f.id === form.id ? { ...f, is_active: !form.is_active } : f,
+        ),
       );
       setStatusMessage({
         type: "success",
@@ -171,7 +171,7 @@ export default function AdminFormsPage() {
     }
   }
 
-  function startNewForm(track: typeof TRACKS[number]) {
+  function startNewForm(track: (typeof TRACKS)[number]) {
     const existing = forms.find((f) => f.portal_type === track);
     if (existing) {
       setEditingForm(existing);
@@ -228,7 +228,7 @@ export default function AdminFormsPage() {
     setEditingForm({
       ...editingForm,
       fields: editingForm.fields.map((f) =>
-        f.id === fieldId ? { ...f, ...updates } : f
+        f.id === fieldId ? { ...f, ...updates } : f,
       ),
     });
   }
@@ -578,7 +578,9 @@ export default function AdminFormsPage() {
                             value={(field.options || []).join("\n")}
                             onChange={(e) =>
                               updateField(field.id, {
-                                options: e.target.value.split("\n").filter(Boolean),
+                                options: e.target.value
+                                  .split("\n")
+                                  .filter(Boolean),
                               })
                             }
                             className="input-cosmic w-full text-sm resize-none"
@@ -593,7 +595,9 @@ export default function AdminFormsPage() {
                           id={`required-${field.id}`}
                           checked={field.required}
                           onChange={(e) =>
-                            updateField(field.id, { required: e.target.checked })
+                            updateField(field.id, {
+                              required: e.target.checked,
+                            })
                           }
                           className="w-4 h-4 rounded text-gold-primary bg-nebula-purple-1 border-border-cosmic-blue focus:ring-gold-primary"
                         />

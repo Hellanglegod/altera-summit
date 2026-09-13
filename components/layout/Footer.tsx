@@ -15,10 +15,10 @@ const contactLinks = [
 ];
 
 const quickLinks = [
-  { href: "#about", label: "About" },
-  { href: "#committees", label: "Committees" },
-  { href: "#applications", label: "Apply" },
-  { href: "#schedule", label: "Schedule" },
+  { href: "/about", label: "About" },
+  { href: "/committees", label: "Committees" },
+  { href: "/applications", label: "Apply" },
+  { href: "/schedule", label: "Schedule" },
 ];
 
 export function Footer() {

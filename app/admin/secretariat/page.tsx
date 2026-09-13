@@ -20,7 +20,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const emptyMemberForm: Omit<SecretariatMember, "id" | "created_at" | "updated_at"> = {
+const emptyMemberForm: Omit<
+  SecretariatMember,
+  "id" | "created_at" | "updated_at"
+> = {
   name: "",
   designation: "",
   bio: "",
@@ -32,11 +35,14 @@ const emptyMemberForm: Omit<SecretariatMember, "id" | "created_at" | "updated_at
 };
 
 export default function AdminSecretariatPage() {
-  const { role } = useAdminAuth();
+  const { hasPermission } = useAdminAuth();
   const [members, setMembers] = useState<SecretariatMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingMember, setEditingMember] = useState<
-    (Omit<SecretariatMember, "id" | "created_at" | "updated_at"> & { id?: string }) | null
+    | (Omit<SecretariatMember, "id" | "created_at" | "updated_at"> & {
+        id?: string;
+      })
+    | null
   >(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
@@ -44,7 +50,7 @@ export default function AdminSecretariatPage() {
     text: string;
   } | null>(null);
 
-  const canEdit = role === "super_admin";
+  const canEdit = hasPermission("secretariat.manage");
 
   useEffect(() => {
     fetchMembers();
@@ -86,8 +92,8 @@ export default function AdminSecretariatPage() {
 
       setMembers((prev) =>
         prev.map((m) =>
-          m.id === member.id ? { ...m, is_active: !member.is_active } : m
-        )
+          m.id === member.id ? { ...m, is_active: !member.is_active } : m,
+        ),
       );
 
       setStatusMessage({
@@ -104,7 +110,10 @@ export default function AdminSecretariatPage() {
     }
   }
 
-  async function handleReorder(member: SecretariatMember, direction: "up" | "down") {
+  async function handleReorder(
+    member: SecretariatMember,
+    direction: "up" | "down",
+  ) {
     if (!canEdit) return;
 
     const index = members.findIndex((m) => m.id === member.id);
@@ -131,7 +140,9 @@ export default function AdminSecretariatPage() {
           .eq("id", swapTarget.id),
       ];
 
-      await Promise.all(batch);
+      const results = await Promise.all(batch);
+      const failedUpdate = results.find((result) => result.error);
+      if (failedUpdate?.error) throw failedUpdate.error;
 
       setMembers((prev) => {
         const newList = [...prev];
@@ -209,19 +220,42 @@ export default function AdminSecretariatPage() {
 
   async function handleDelete(member: SecretariatMember) {
     if (!canEdit) return;
-    if (!confirm(`Delete ${member.name} (${member.designation}) from the secretariat?`)) {
+    if (
+      !confirm(
+        `Delete ${member.name} (${member.designation}) from the secretariat?`,
+      )
+    ) {
       return;
     }
 
     try {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from("secretariat_members")
         .delete()
         .eq("id", member.id);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
 
-      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      // Get remaining members and reorder them
+      const remaining = members
+        .filter((m) => m.id !== member.id)
+        .sort((a, b) => a.display_order - b.display_order);
+
+      // Update display_order for all remaining items
+      for (let i = 0; i < remaining.length; i++) {
+        const { error: updateError } = await supabase
+          .from("secretariat_members")
+          .update({
+            display_order: i + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", remaining[i].id);
+        if (updateError) throw updateError;
+      }
+
+      // Update local state
+      setMembers(remaining.map((m, i) => ({ ...m, display_order: i + 1 })));
+
       setStatusMessage({
         type: "success",
         text: `${member.name} removed.`,
@@ -296,10 +330,7 @@ export default function AdminSecretariatPage() {
         </div>
       ) : members.length === 0 ? (
         <div className="card-cosmic p-16 text-center">
-          <UserCheck
-            size={48}
-            className="text-text-stardust/30 mx-auto mb-4"
-          />
+          <UserCheck size={48} className="text-text-stardust/30 mx-auto mb-4" />
           <h3 className="font-heading text-lg text-text-stardust mb-1">
             No secretariat members yet
           </h3>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/components/admin/AuthProvider";
-import { FormSubmission, ApplicationStatus } from "@/types";
+import { FormSubmission, ApplicationStatus, Committee } from "@/types";
 import {
   FileText,
   Search,
@@ -85,8 +85,9 @@ const TRACK_ICONS = {
 };
 
 export default function ApplicationsPage() {
-  const { role } = useAdminAuth();
+  const { hasPermission } = useAdminAuth();
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [committees, setCommittees] = useState<Committee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTrack, setSelectedTrack] = useState<
@@ -103,11 +104,28 @@ export default function ApplicationsPage() {
     text: string;
   } | null>(null);
 
-  const canEdit =
-    role === "super_admin" || role === "director_registrations";
+  const canEdit = hasPermission("applications.manage");
+  const canReview = hasPermission("applications.review");
+
+  function canAcceptTrack(portalType: FormSubmission["portal_type"]): boolean {
+    return hasPermission(`applications.${portalType}.accept`);
+  }
+
+  function canChangeStatus(submission: FormSubmission): boolean {
+    return canEdit || canReview || canAcceptTrack(submission.portal_type);
+  }
+
+  function canAssignCommittee(submission: FormSubmission): boolean {
+    return (
+      (submission.portal_type === "delegate" ||
+        submission.portal_type === "chair") &&
+      canAcceptTrack(submission.portal_type)
+    );
+  }
 
   useEffect(() => {
     fetchSubmissions();
+    fetchCommittees();
   }, []);
 
   useEffect(() => {
@@ -137,11 +155,64 @@ export default function ApplicationsPage() {
     }
   }
 
+  async function fetchCommittees() {
+    const { data } = await supabase
+      .from("committees")
+      .select("id, name, abbreviation")
+      .order("display_order", { ascending: true });
+    setCommittees((data || []) as Committee[]);
+  }
+
+  async function handleAssignCommittee(
+    submissionId: string,
+    portalType: FormSubmission["portal_type"],
+    committeeId: string,
+  ) {
+    if (
+      (portalType !== "delegate" && portalType !== "chair") ||
+      !canAcceptTrack(portalType)
+    ) {
+      return;
+    }
+    const { error } = await supabase
+      .from("form_submissions")
+      .update({
+        committee_id: committeeId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", submissionId);
+
+    if (error) {
+      setStatusMessage({
+        type: "error",
+        text: "Failed to assign this delegate to the committee.",
+      });
+      return;
+    }
+
+    setSubmissions((current) =>
+      current.map((submission) =>
+        submission.id === submissionId
+          ? { ...submission, committee_id: committeeId || null }
+          : submission,
+      ),
+    );
+    setSelectedSubmission((current) =>
+      current?.id === submissionId
+        ? { ...current, committee_id: committeeId || null }
+        : current,
+    );
+    setStatusMessage({ type: "success", text: "Committee assignment saved." });
+  }
+
   async function handleStatusChange(
     submissionId: string,
-    newStatus: ApplicationStatus
+    newStatus: ApplicationStatus,
   ) {
-    if (!canEdit) return;
+    const submission =
+      submissions.find((item) => item.id === submissionId) ||
+      (selectedSubmission?.id === submissionId ? selectedSubmission : null);
+    if (!submission || !canChangeStatus(submission)) return;
     setIsUpdatingStatus(true);
     try {
       const { error } = await supabase
@@ -156,13 +227,13 @@ export default function ApplicationsPage() {
 
       setSubmissions((prev) =>
         prev.map((s) =>
-          s.id === submissionId ? { ...s, status: newStatus } : s
-        )
+          s.id === submissionId ? { ...s, status: newStatus } : s,
+        ),
       );
 
       if (selectedSubmission?.id === submissionId) {
         setSelectedSubmission((prev) =>
-          prev ? { ...prev, status: newStatus } : null
+          prev ? { ...prev, status: newStatus } : null,
         );
       }
 
@@ -183,7 +254,7 @@ export default function ApplicationsPage() {
   }
 
   async function handleSaveNotes() {
-    if (!selectedSubmission || !canEdit) return;
+    if (!selectedSubmission || (!canEdit && !canReview)) return;
     setIsSavingNotes(true);
     try {
       const { error } = await supabase
@@ -198,14 +269,12 @@ export default function ApplicationsPage() {
 
       setSubmissions((prev) =>
         prev.map((s) =>
-          s.id === selectedSubmission.id
-            ? { ...s, notes: internalNotes }
-            : s
-        )
+          s.id === selectedSubmission.id ? { ...s, notes: internalNotes } : s,
+        ),
       );
 
       setSelectedSubmission((prev) =>
-        prev ? { ...prev, notes: internalNotes } : null
+        prev ? { ...prev, notes: internalNotes } : null,
       );
 
       setStatusMessage({
@@ -226,7 +295,9 @@ export default function ApplicationsPage() {
 
   async function handleDelete(submissionId: string) {
     if (!canEdit) return;
-    if (!confirm("Are you sure you want to permanently delete this application?")) {
+    if (
+      !confirm("Are you sure you want to permanently delete this application?")
+    ) {
       return;
     }
 
@@ -282,9 +353,10 @@ export default function ApplicationsPage() {
       `"${(s.notes || "").replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join(
-      "\n"
-    );
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((r) => r.join(",")),
+    ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -292,7 +364,7 @@ export default function ApplicationsPage() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `altera_summit_applications_${new Date().toISOString().slice(0, 10)}.csv`
+      `altera_summit_applications_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -304,9 +376,13 @@ export default function ApplicationsPage() {
     return submissions.filter((item) => {
       const matchesSearch =
         item.applicant_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.applicant_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.applicant_email
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
         (item.applicant_phone &&
-          item.applicant_phone.toLowerCase().includes(searchQuery.toLowerCase()));
+          item.applicant_phone
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()));
 
       const matchesTrack =
         selectedTrack === "all" || item.portal_type === selectedTrack;
@@ -402,14 +478,14 @@ export default function ApplicationsPage() {
             status === "Submitted"
               ? stats.submitted
               : status === "In Review"
-              ? stats.inReview
-              : status === "Shortlisted"
-              ? stats.shortlisted
-              : status === "Accepted"
-              ? stats.accepted
-              : status === "Confirmed"
-              ? stats.confirmed
-              : stats.rejected;
+                ? stats.inReview
+                : status === "Shortlisted"
+                  ? stats.shortlisted
+                  : status === "Accepted"
+                    ? stats.accepted
+                    : status === "Confirmed"
+                      ? stats.confirmed
+                      : stats.rejected;
 
           return (
             <div
@@ -425,17 +501,19 @@ export default function ApplicationsPage() {
                     status === "Submitted"
                       ? "bg-blue-400"
                       : status === "In Review"
-                      ? "bg-yellow-400"
-                      : status === "Shortlisted"
-                      ? "bg-purple-400"
-                      : status === "Accepted"
-                      ? "bg-green-400"
-                      : status === "Confirmed"
-                      ? "bg-gold-primary"
-                      : "bg-red-400"
+                        ? "bg-yellow-400"
+                        : status === "Shortlisted"
+                          ? "bg-purple-400"
+                          : status === "Accepted"
+                            ? "bg-green-400"
+                            : status === "Confirmed"
+                              ? "bg-gold-primary"
+                              : "bg-red-400"
                   }`}
                 />
-                <p className="text-xs text-text-stardust/60 truncate">{status}</p>
+                <p className="text-xs text-text-stardust/60 truncate">
+                  {status}
+                </p>
               </div>
               <p className={`text-2xl font-bold ${config.text}`}>{count}</p>
             </div>
@@ -460,7 +538,7 @@ export default function ApplicationsPage() {
               >
                 {track === "all" ? "All Tracks" : track}
               </button>
-            )
+            ),
           )}
         </div>
 
@@ -572,14 +650,14 @@ export default function ApplicationsPage() {
 
                       {/* Status Dropdown */}
                       <td className="p-4">
-                        {canEdit ? (
+                        {canChangeStatus(submission) ? (
                           <div className="relative inline-block">
                             <select
                               value={submission.status}
                               onChange={(e) =>
                                 handleStatusChange(
                                   submission.id,
-                                  e.target.value as ApplicationStatus
+                                  e.target.value as ApplicationStatus,
                                 )
                               }
                               className={`text-xs font-medium px-3 py-1.5 rounded-full border cursor-pointer focus:outline-none transition-colors ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
@@ -696,13 +774,17 @@ export default function ApplicationsPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-text-stardust/50">Submitted On</p>
+                      <p className="text-xs text-text-stardust/50">
+                        Submitted On
+                      </p>
                       <p className="text-text-stardust">
                         {formatDate(selectedSubmission.created_at)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-text-stardust/50">Last Updated</p>
+                      <p className="text-xs text-text-stardust/50">
+                        Last Updated
+                      </p>
                       <p className="text-text-stardust">
                         {formatDate(selectedSubmission.updated_at)}
                       </p>
@@ -722,7 +804,10 @@ export default function ApplicationsPage() {
                       return (
                         <button
                           key={status}
-                          disabled={!canEdit || isUpdatingStatus}
+                          disabled={
+                            !canChangeStatus(selectedSubmission) ||
+                            isUpdatingStatus
+                          }
                           onClick={() =>
                             handleStatusChange(selectedSubmission.id, status)
                           }
@@ -738,6 +823,39 @@ export default function ApplicationsPage() {
                     })}
                   </div>
                 </div>
+
+                {/* Form Submission Data (JSON payload) */}
+                {(selectedSubmission.portal_type === "delegate" ||
+                  selectedSubmission.portal_type === "chair") && (
+                  <div className="card-cosmic p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-gold-primary mb-3">
+                      Committee Assignment
+                    </h3>
+                    <select
+                      value={selectedSubmission.committee_id || ""}
+                      disabled={!canAssignCommittee(selectedSubmission)}
+                      onChange={(event) =>
+                        void handleAssignCommittee(
+                          selectedSubmission.id,
+                          selectedSubmission.portal_type,
+                          event.target.value,
+                        )
+                      }
+                      className="input-cosmic w-full"
+                    >
+                      <option value="">Unassigned</option>
+                      {committees.map((committee) => (
+                        <option key={committee.id} value={committee.id}>
+                          {committee.abbreviation} - {committee.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-text-stardust/50">
+                      Authorized reviewers can assign delegates and chairs to an
+                      active committee.
+                    </p>
+                  </div>
+                )}
 
                 {/* Form Submission Data (JSON payload) */}
                 <div className="card-cosmic p-4">
@@ -762,7 +880,7 @@ export default function ApplicationsPage() {
                                 : String(val)}
                             </p>
                           </div>
-                        )
+                        ),
                       )}
                     </div>
                   ) : (
@@ -781,11 +899,11 @@ export default function ApplicationsPage() {
                     rows={3}
                     value={internalNotes}
                     onChange={(e) => setInternalNotes(e.target.value)}
-                    disabled={!canEdit}
+                    disabled={!canEdit && !canReview}
                     placeholder="Add internal remarks, interview feedback, allocation choices..."
                     className="input-cosmic w-full text-sm resize-none mb-3"
                   />
-                  {canEdit && (
+                  {(canEdit || canReview) && (
                     <button
                       onClick={handleSaveNotes}
                       disabled={isSavingNotes}

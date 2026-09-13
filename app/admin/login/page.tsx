@@ -6,6 +6,37 @@ import Link from "next/link";
 import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { StarfieldCanvas } from "@/components/ui/StarfieldCanvas";
+import { DEFAULT_ROLE_PERMISSIONS } from "@/components/admin/AuthProvider";
+
+async function hasAdminPermissions(userId: string, metadataRole?: string) {
+  const { data: assignment } = await supabase
+    .from("admin_role_assignments")
+    .select("role:admin_roles(permissions)")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const assignedPermissions = (
+    assignment?.role as {
+      permissions?: string[];
+    } | null
+  )?.permissions;
+
+  if (assignedPermissions?.includes("*") || assignedPermissions?.length) {
+    return true;
+  }
+
+  if (!metadataRole) return false;
+  const { data: metadataRoleDefinition } = await supabase
+    .from("admin_roles")
+    .select("permissions")
+    .eq("name", metadataRole)
+    .maybeSingle();
+  const permissions = metadataRoleDefinition?.permissions as string[] | null;
+  const resolvedPermissions =
+    permissions || DEFAULT_ROLE_PERMISSIONS[metadataRole] || [];
+  return Boolean(
+    resolvedPermissions.includes("*") || resolvedPermissions.length,
+  );
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -20,10 +51,11 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (signInError) {
         setError(signInError.message);
@@ -31,19 +63,19 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Check if user has admin role (checks both app_metadata and user_metadata)
-      const role =
+      // Resolve permissions from the assigned role or metadata role.
+      const metadataRole =
         (data.user?.app_metadata?.role as string) ||
         (data.user?.user_metadata?.role as string);
+      const hasPermissions = data.user
+        ? await hasAdminPermissions(data.user.id, metadataRole)
+        : false;
 
-      if (
-        !role ||
-        !["super_admin", "director_registrations", "committee_director"].includes(
-          role
-        )
-      ) {
+      if (!hasPermissions) {
         await supabase.auth.signOut();
-        setError("Access denied. You do not have admin privileges. Ensure your user role is set to 'super_admin' in Supabase.");
+        setError(
+          "Access denied. You do not have admin privileges. Ensure your user role is set to 'super_admin' in Supabase.",
+        );
         setIsLoading(false);
         return;
       }
@@ -88,7 +120,10 @@ export default function AdminLoginPage() {
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/50 flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle
+                size={20}
+                className="text-red-500 flex-shrink-0 mt-0.5"
+              />
               <p className="text-sm text-red-300">{error}</p>
             </div>
           )}
@@ -176,7 +211,8 @@ export default function AdminLoginPage() {
         {/* Security Notice */}
         <div className="mt-4 text-center">
           <p className="text-xs text-text-stardust/40">
-            This portal is for authorized Altera Summit secretariat members only.
+            This portal is for authorized Altera Summit secretariat members
+            only.
           </p>
         </div>
       </div>

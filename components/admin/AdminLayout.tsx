@@ -15,22 +15,59 @@ import {
   Landmark,
   UserCheck,
   FileEdit,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/applications", label: "Applications", icon: FileText },
-  { href: "/admin/forms", label: "Form Builder", icon: FileEdit },
-  { href: "/admin/committees", label: "Committees", icon: Landmark },
-  { href: "/admin/secretariat", label: "Secretariat", icon: UserCheck },
-  { href: "/admin/schedule", label: "Schedule", icon: Calendar },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  {
+    href: "/admin/applications",
+    label: "Applications",
+    icon: FileText,
+    permission: "applications.read",
+  },
+  {
+    href: "/admin/forms",
+    label: "Form Builder",
+    icon: FileEdit,
+    permission: "forms.manage",
+  },
+  {
+    href: "/admin/committees",
+    label: "Committees",
+    icon: Landmark,
+    permission: "committees.read",
+  },
+  {
+    href: "/admin/secretariat",
+    label: "Secretariat",
+    icon: UserCheck,
+    permission: "secretariat.manage",
+  },
+  {
+    href: "/admin/schedule",
+    label: "Schedule",
+    icon: Calendar,
+    permission: "schedule.manage",
+  },
+  {
+    href: "/admin/settings",
+    label: "Settings",
+    icon: Settings,
+    permission: "settings.manage",
+  },
+  {
+    href: "/admin/access",
+    label: "Roles & Approvals",
+    icon: ShieldCheck,
+    permission: "roles.manage",
+  },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, role, signOut } = useAdminAuth();
+  const { user, role, portalId, hasPermission, signOut } = useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -68,6 +105,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <span className="text-xs text-text-stardust/60 capitalize">
                 {role?.replace("_", " ")}
               </span>
+              {portalId && (
+                <span className="text-[10px] uppercase tracking-wider text-gold-primary/80">
+                  Reference code: {portalId}
+                </span>
+              )}
             </div>
             <button
               onClick={handleSignOut}
@@ -84,29 +126,36 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "fixed top-16 left-0 bottom-0 w-64 glass-dark border-r border-border-cosmic-blue transition-transform duration-300 z-40",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          isSidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
         )}
       >
         <nav className="p-4 space-y-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300",
-                  isActive
-                    ? "bg-gold-primary/20 text-gold-primary border border-gold-primary/30"
-                    : "hover:bg-nebula-purple-1 text-text-stardust/80 hover:text-text-stardust"
-                )}
-              >
-                <item.icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+          {navItems
+            .filter(
+              (item) => !item.permission || hasPermission(item.permission),
+            )
+            .map((item) => {
+              const isActive =
+                pathname === item.href || pathname?.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300",
+                    isActive
+                      ? "bg-gold-primary/20 text-gold-primary border border-gold-primary/30"
+                      : "hover:bg-nebula-purple-1 text-text-stardust/80 hover:text-text-stardust",
+                  )}
+                >
+                  <item.icon size={20} />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
         </nav>
       </aside>
 

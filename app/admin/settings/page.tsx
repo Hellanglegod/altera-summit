@@ -62,7 +62,7 @@ const formModeConfig: Record<
 };
 
 export default function AdminSettingsPage() {
-  const { user, role } = useAdminAuth();
+  const { user, hasPermission } = useAdminAuth();
   const [portals, setPortals] = useState<PortalSettings[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<string | null>(null);
@@ -99,24 +99,22 @@ export default function AdminSettingsPage() {
   function handleToggle(portalId: string, currentValue: boolean) {
     setPortals((prev) =>
       prev.map((p) =>
-        p.id === portalId ? { ...p, is_active: !currentValue } : p
-      )
+        p.id === portalId ? { ...p, is_active: !currentValue } : p,
+      ),
     );
     setHasChanges((prev) => new Set(prev).add(portalId));
   }
 
   function handleFormModeChange(portalId: string, newMode: FormMode) {
     setPortals((prev) =>
-      prev.map((p) =>
-        p.id === portalId ? { ...p, form_mode: newMode } : p
-      )
+      prev.map((p) => (p.id === portalId ? { ...p, form_mode: newMode } : p)),
     );
     setHasChanges((prev) => new Set(prev).add(portalId));
   }
 
   function handleUrlChange(portalId: string, url: string) {
     setPortals((prev) =>
-      prev.map((p) => (p.id === portalId ? { ...p, form_url: url } : p))
+      prev.map((p) => (p.id === portalId ? { ...p, form_url: url } : p)),
     );
     setHasChanges((prev) => new Set(prev).add(portalId));
   }
@@ -124,8 +122,8 @@ export default function AdminSettingsPage() {
   function handleClosedMessageChange(portalId: string, message: string) {
     setPortals((prev) =>
       prev.map((p) =>
-        p.id === portalId ? { ...p, closed_message: message } : p
-      )
+        p.id === portalId ? { ...p, closed_message: message } : p,
+      ),
     );
     setHasChanges((prev) => new Set(prev).add(portalId));
   }
@@ -180,7 +178,7 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const canEdit = role === "super_admin" || role === "director_registrations";
+  const canEdit = hasPermission("settings.manage");
 
   if (isLoading) {
     return (
@@ -226,7 +224,10 @@ export default function AdminSettingsPage() {
       {/* Permission Notice */}
       {!canEdit && (
         <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
-          <AlertCircle size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle
+            size={20}
+            className="text-yellow-400 flex-shrink-0 mt-0.5"
+          />
           <p className="text-sm text-yellow-300">
             You have read-only access. Only Super Admins and Directors of
             Registrations can modify portal settings.
@@ -282,8 +283,8 @@ export default function AdminSettingsPage() {
                       config.color === "blue"
                         ? "bg-blue-500/10 border border-blue-500/20"
                         : config.color === "purple"
-                        ? "bg-purple-500/10 border border-purple-500/20"
-                        : "bg-gold-primary/10 border border-gold-primary/20"
+                          ? "bg-purple-500/10 border border-purple-500/20"
+                          : "bg-gold-primary/10 border border-gold-primary/20"
                     }`}
                   >
                     <IconComponent
@@ -292,8 +293,8 @@ export default function AdminSettingsPage() {
                         config.color === "blue"
                           ? "text-blue-400"
                           : config.color === "purple"
-                          ? "text-purple-400"
-                          : "text-gold-primary"
+                            ? "text-purple-400"
+                            : "text-gold-primary"
                       }
                     />
                   </div>
@@ -309,7 +310,9 @@ export default function AdminSettingsPage() {
 
                 {/* Toggle Switch */}
                 <button
-                  onClick={() => canEdit && handleToggle(portal.id, portal.is_active)}
+                  onClick={() =>
+                    canEdit && handleToggle(portal.id, portal.is_active)
+                  }
                   disabled={!canEdit}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:cursor-not-allowed ${
                     portal.is_active
@@ -354,7 +357,9 @@ export default function AdminSettingsPage() {
                       return (
                         <button
                           key={mode}
-                          onClick={() => canEdit && handleFormModeChange(portal.id, mode)}
+                          onClick={() =>
+                            canEdit && handleFormModeChange(portal.id, mode)
+                          }
                           disabled={!canEdit}
                           className={`p-2 rounded-lg border text-center transition-all duration-200 ${
                             isSelected
@@ -380,7 +385,9 @@ export default function AdminSettingsPage() {
                     <input
                       type="url"
                       value={portal.form_url || ""}
-                      onChange={(e) => handleUrlChange(portal.id, e.target.value)}
+                      onChange={(e) =>
+                        handleUrlChange(portal.id, e.target.value)
+                      }
                       disabled={!canEdit}
                       placeholder="https://forms.google.com/..."
                       className="input-cosmic w-full disabled:opacity-50"
@@ -388,13 +395,18 @@ export default function AdminSettingsPage() {
                   </div>
                 )}
 
-                {/* Custom Form Notice */}
+                {/* Custom Form Builder Link */}
                 {portal.form_mode === "custom_builder" && (
-                  <div className="p-3 rounded-lg bg-nebula-purple-1 border border-border-cosmic-blue">
-                    <p className="text-xs text-text-stardust/70">
-                      <FileEdit size={14} className="inline mr-1 text-gold-primary" />
-                      Custom form builder is coming soon. For now, use Google Form
-                      or External Link mode.
+                  <div className="p-3 rounded-lg bg-gold-primary/10 border border-gold-primary/30">
+                    <p className="text-xs text-gold-primary/90">
+                      <FileEdit size={14} className="inline mr-1" />
+                      Custom form is active. Build your form at{" "}
+                      <a
+                        href="/admin/forms"
+                        className="underline hover:text-gold-primary"
+                      >
+                        Form Builder
+                      </a>
                     </p>
                   </div>
                 )}
@@ -448,13 +460,15 @@ export default function AdminSettingsPage() {
       {/* Empty State */}
       {portals.length === 0 && !isLoading && (
         <div className="card-cosmic p-12 text-center">
-          <AlertCircle size={48} className="text-text-stardust/40 mx-auto mb-4" />
+          <AlertCircle
+            size={48}
+            className="text-text-stardust/40 mx-auto mb-4"
+          />
           <h3 className="font-heading text-xl text-text-stardust/80 mb-2">
             No portal settings found
           </h3>
           <p className="text-text-stardust/60">
-            Run the sample-portal-settings.sql script in Supabase to create
-            portal configurations.
+            Add portal configurations in Supabase before opening applications.
           </p>
         </div>
       )}
@@ -482,7 +496,7 @@ export default function AdminSettingsPage() {
             </div>
             <p className="text-sm text-text-stardust/70">
               Choose between Google Forms, external links, or the custom form
-              builder (coming soon).
+              builder.
             </p>
           </div>
           <div>
