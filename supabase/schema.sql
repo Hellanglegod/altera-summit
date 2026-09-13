@@ -220,81 +220,113 @@ RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS
     );
 $$;
 
+DROP POLICY IF EXISTS "Super admins manage role definitions" ON admin_roles;
 CREATE POLICY "Super admins manage role definitions" ON admin_roles
     FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+DROP POLICY IF EXISTS "Authenticated users can read role definitions" ON admin_roles;
 CREATE POLICY "Authenticated users can read role definitions" ON admin_roles
     FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Admins can read their assigned role" ON admin_role_assignments;
 CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments
     FOR SELECT TO authenticated USING (user_id = auth.uid() OR is_super_admin());
+
+DROP POLICY IF EXISTS "Super admins manage role assignments" ON admin_role_assignments;
 CREATE POLICY "Super admins manage role assignments" ON admin_role_assignments
     FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+DROP POLICY IF EXISTS "Admins can read action requests" ON admin_action_requests;
 CREATE POLICY "Admins can read action requests" ON admin_action_requests
     FOR SELECT TO authenticated USING (requested_by = auth.uid() OR is_super_admin());
+
+DROP POLICY IF EXISTS "Admins can request actions" ON admin_action_requests;
 CREATE POLICY "Admins can request actions" ON admin_action_requests
     FOR INSERT TO authenticated WITH CHECK (requested_by = auth.uid());
+
+DROP POLICY IF EXISTS "Super admins review actions" ON admin_action_requests;
 CREATE POLICY "Super admins review actions" ON admin_action_requests
     FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
 
 -- Portal Settings - Public read, Auth write
+DROP POLICY IF EXISTS "Public can read portal settings" ON portal_settings;
 CREATE POLICY "Public can read portal settings" ON portal_settings
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Admins can update portal settings" ON portal_settings;
 CREATE POLICY "Admins can update portal settings" ON portal_settings
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[]);
 
 -- Committees - Public read, Auth write
+DROP POLICY IF EXISTS "Public can read active committees" ON committees;
 CREATE POLICY "Public can read active committees" ON committees
     FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admins can manage committees" ON committees;
 CREATE POLICY "Admins can manage committees" ON committees
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin', 'committee_director']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin', 'committee_director']::TEXT[]);
 
 -- Secretariat Members - Public read, Auth write
+DROP POLICY IF EXISTS "Public can read secretariat" ON secretariat_members;
 CREATE POLICY "Public can read secretariat" ON secretariat_members
     FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admins can manage secretariat" ON secretariat_members;
 CREATE POLICY "Admins can manage secretariat" ON secretariat_members
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
--- Form Submissions - Public create, admins read/write
+-- Form Submissions - Public create, users read own, admins read/write
+DROP POLICY IF EXISTS "Public can submit applications" ON form_submissions;
 CREATE POLICY "Public can submit applications" ON form_submissions
     FOR INSERT TO anon, authenticated
     WITH CHECK (status = 'Submitted');
 
+DROP POLICY IF EXISTS "Users can read own submissions" ON form_submissions;
+CREATE POLICY "Users can read own submissions" ON form_submissions
+    FOR SELECT TO authenticated
+    USING (LOWER(applicant_email) = LOWER(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "Admins can manage submissions" ON form_submissions;
 CREATE POLICY "Admins can manage submissions" ON form_submissions
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin', 'director_registrations']::TEXT[]);
 
 -- Event Config - Public read, Auth write
+DROP POLICY IF EXISTS "Public can read event config" ON event_config;
 CREATE POLICY "Public can read event config" ON event_config
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Admins can update event config" ON event_config;
 CREATE POLICY "Admins can update event config" ON event_config
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
 -- Custom Forms - Public read of active forms, Auth write
+DROP POLICY IF EXISTS "Public can read active custom forms" ON custom_forms;
 CREATE POLICY "Public can read active custom forms" ON custom_forms
     FOR SELECT TO anon, authenticated
     USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admins can manage custom forms" ON custom_forms;
 CREATE POLICY "Admins can manage custom forms" ON custom_forms
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
 -- Schedule Items - Public read, Auth write
+DROP POLICY IF EXISTS "Public can read schedule" ON schedule_items;
 CREATE POLICY "Public can read schedule" ON schedule_items
     FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admins can manage schedule" ON schedule_items;
 CREATE POLICY "Admins can manage schedule" ON schedule_items
     FOR ALL TO authenticated
     USING (jwt_role() && ARRAY['super_admin']::TEXT[])
@@ -373,30 +405,37 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_portal_settings_updated_at ON portal_settings;
 CREATE TRIGGER update_portal_settings_updated_at
     BEFORE UPDATE ON portal_settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_committees_updated_at ON committees;
 CREATE TRIGGER update_committees_updated_at
     BEFORE UPDATE ON committees
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_secretariat_members_updated_at ON secretariat_members;
 CREATE TRIGGER update_secretariat_members_updated_at
     BEFORE UPDATE ON secretariat_members
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_form_submissions_updated_at ON form_submissions;
 CREATE TRIGGER update_form_submissions_updated_at
     BEFORE UPDATE ON form_submissions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_event_config_updated_at ON event_config;
 CREATE TRIGGER update_event_config_updated_at
     BEFORE UPDATE ON event_config
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_custom_forms_updated_at ON custom_forms;
 CREATE TRIGGER update_custom_forms_updated_at
     BEFORE UPDATE ON custom_forms
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_schedule_items_updated_at ON schedule_items;
 CREATE TRIGGER update_schedule_items_updated_at
     BEFORE UPDATE ON schedule_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

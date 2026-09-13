@@ -14,3 +14,4 @@ CREATE POLICY "Users can read own submissions" ON form_submissions
 
 -- Index to optimize querying submissions by email
 CREATE INDEX IF NOT EXISTS idx_form_submissions_applicant_email ON form_submissions(LOWER(applicant_email));
+

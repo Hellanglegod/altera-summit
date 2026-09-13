@@ -94,12 +94,17 @@ SET permissions = permissions || '["applications.delegate.accept", "applications
 WHERE name = 'director_registrations';
 
 DROP POLICY IF EXISTS "Admins can manage submissions" ON form_submissions;
-DROP POLICY IF EXISTS "Registrations directors manage submissions" ON form_submissions;
-DROP POLICY IF EXISTS "Application reviewers can read submissions" ON form_submissions;
-DROP POLICY IF EXISTS "Application reviewers can update submissions" ON form_submissions;
 DROP POLICY IF EXISTS "Committee directors review delegate submissions" ON form_submissions;
 DROP POLICY IF EXISTS "Committee directors assign delegates" ON form_submissions;
 
+DROP POLICY IF EXISTS "Users can read own submissions" ON form_submissions;
+CREATE POLICY "Users can read own submissions" ON form_submissions
+  FOR SELECT TO authenticated
+  USING (
+    LOWER(applicant_email) = LOWER(auth.jwt() ->> 'email')
+  );
+
+DROP POLICY IF EXISTS "Registrations directors manage submissions" ON form_submissions;
 CREATE POLICY "Registrations directors manage submissions" ON form_submissions
   FOR ALL TO authenticated
   USING (
@@ -109,6 +114,7 @@ CREATE POLICY "Registrations directors manage submissions" ON form_submissions
     admin_has_permission('applications.manage')
   );
 
+DROP POLICY IF EXISTS "Application reviewers can read submissions" ON form_submissions;
 CREATE POLICY "Application reviewers can read submissions" ON form_submissions
   FOR SELECT TO authenticated
   USING (
@@ -120,6 +126,7 @@ CREATE POLICY "Application reviewers can read submissions" ON form_submissions
     )
   );
 
+DROP POLICY IF EXISTS "Secretariat managers can read accepted Secretariat applications" ON form_submissions;
 CREATE POLICY "Secretariat managers can read accepted Secretariat applications" ON form_submissions
   FOR SELECT TO authenticated
   USING (
@@ -128,6 +135,7 @@ CREATE POLICY "Secretariat managers can read accepted Secretariat applications" 
     AND admin_has_permission('secretariat.manage')
   );
 
+DROP POLICY IF EXISTS "Application reviewers can update submissions" ON form_submissions;
 CREATE POLICY "Application reviewers can update submissions" ON form_submissions
   FOR UPDATE TO authenticated
   USING (

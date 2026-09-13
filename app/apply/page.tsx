@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Header, Footer } from "@/components/layout";
-import { Users, Award, Crown } from "lucide-react";
+import { Users, Award, Crown, CheckCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const tracks = [
   {
@@ -27,6 +31,65 @@ const tracks = [
 ] as const;
 
 export default function ApplyLandingPage() {
+  const [userSubmission, setUserSubmission] = useState<{
+    portal_type: string;
+    status: string;
+  } | null>(null);
+
+  useEffect(() => {
+    async function checkUserSubmission() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.email) return;
+
+      const email = session.user.email;
+      const userId = session.user.id;
+
+      // 1. Check form_submissions
+      const { data: subData } = await supabase
+        .from("form_submissions")
+        .select("portal_type, status")
+        .ilike("applicant_email", email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (subData) {
+        setUserSubmission(subData);
+        return;
+      }
+
+      // 2. Check secretariat_members
+      const { data: secData } = await supabase
+        .from("secretariat_members")
+        .select("id")
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle();
+
+      if (secData) {
+        setUserSubmission({ portal_type: "secretariat", status: "Accepted" });
+        return;
+      }
+
+      // 3. Check admin_role_assignments
+      const { data: roleData } = await supabase
+        .from("admin_role_assignments")
+        .select("id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (roleData) {
+        setUserSubmission({ portal_type: "secretariat", status: "Accepted" });
+        return;
+      }
+    }
+
+    checkUserSubmission();
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-bg-void text-text-stardust">
       <Header />
@@ -41,35 +104,75 @@ export default function ApplyLandingPage() {
                 Choose your application path
               </h1>
               <p className="text-lg text-text-stardust/80">
-                Before you can begin the form, you must create an account or
-                sign in to continue.
+                Select an application portal below to sign up and submit your
+                application.
               </p>
             </div>
 
+            {userSubmission && (
+              <div className="mx-auto mb-10 max-w-2xl rounded-2xl border border-gold-primary/30 bg-gold-primary/10 p-5 text-center backdrop-blur-md">
+                <div className="mb-1 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gold-primary">
+                  <CheckCircle size={18} /> Application On Record
+                </div>
+                <p className="text-sm text-text-stardust/90">
+                  You have already submitted an application for the{" "}
+                  <strong className="capitalize text-gold-primary">
+                    {userSubmission.portal_type}
+                  </strong>{" "}
+                  track (Status:{" "}
+                  <span className="font-semibold text-emerald-400">
+                    {userSubmission.status || "Submitted"}
+                  </span>
+                  ). Applicants may only submit one application across all
+                  portals.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {tracks.map(({ type, title, description, icon: Icon }) => (
-                <Link
-                  key={type}
-                  href={`/apply/${type}`}
-                  className="card-cosmic group rounded-2xl p-6 transition-all duration-300 hover:border-gold-primary/60"
-                >
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-gold-primary/25 bg-gold-primary/10 text-gold-primary">
-                    <Icon size={28} />
-                  </div>
-                  <div className="mb-2 text-xs uppercase tracking-[0.2em] text-gold-primary/80">
-                    {type}
-                  </div>
-                  <h2 className="mb-3 font-heading text-3xl text-text-stardust group-hover:text-gold-primary">
-                    {title}
-                  </h2>
-                  <p className="text-sm leading-relaxed text-text-stardust/70">
-                    {description}
-                  </p>
-                  <div className="mt-5 inline-flex items-center text-sm font-medium text-gold-primary">
-                    Continue to sign up
-                  </div>
-                </Link>
-              ))}
+              {tracks.map(({ type, title, description, icon: Icon }) => {
+                const isAppliedTrack = userSubmission?.portal_type === type;
+                const isOtherApplied =
+                  userSubmission && userSubmission.portal_type !== type;
+
+                return (
+                  <Link
+                    key={type}
+                    href={`/apply/${type}`}
+                    className={`card-cosmic group rounded-2xl p-6 transition-all duration-300 ${
+                      isOtherApplied
+                        ? "opacity-60 hover:border-border-cosmic-blue cursor-not-allowed"
+                        : "hover:border-gold-primary/60"
+                    }`}
+                  >
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-gold-primary/25 bg-gold-primary/10 text-gold-primary">
+                      <Icon size={28} />
+                    </div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.2em] text-gold-primary/80">
+                      {type}
+                    </div>
+                    <h2 className="mb-3 font-heading text-3xl text-text-stardust group-hover:text-gold-primary">
+                      {title}
+                    </h2>
+                    <p className="text-sm leading-relaxed text-text-stardust/70">
+                      {description}
+                    </p>
+                    <div className="mt-5 inline-flex items-center text-sm font-medium text-gold-primary">
+                      {isAppliedTrack ? (
+                        <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
+                          <CheckCircle size={16} /> View Submission
+                        </span>
+                      ) : isOtherApplied ? (
+                        <span className="text-text-stardust/40">
+                          Application Limit Reached
+                        </span>
+                      ) : (
+                        "Continue to form"
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </section>

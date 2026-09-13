@@ -57,6 +57,10 @@ const trackConfig = {
 export function Applications() {
   const [portals, setPortals] = useState<PortalSettings[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userSubmission, setUserSubmission] = useState<{
+    portal_type: string;
+    status: string;
+  } | null>(null);
 
   useEffect(() => {
     async function fetchPortalSettings() {
@@ -75,7 +79,58 @@ export function Applications() {
       }
     }
 
+    async function checkUserSubmission() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.email) return;
+
+      const email = session.user.email;
+      const userId = session.user.id;
+
+      // 1. Check form_submissions
+      const { data: subData } = await supabase
+        .from("form_submissions")
+        .select("portal_type, status")
+        .ilike("applicant_email", email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (subData) {
+        setUserSubmission(subData);
+        return;
+      }
+
+      // 2. Check secretariat_members
+      const { data: secData } = await supabase
+        .from("secretariat_members")
+        .select("id")
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle();
+
+      if (secData) {
+        setUserSubmission({ portal_type: "secretariat", status: "Accepted" });
+        return;
+      }
+
+      // 3. Check admin_role_assignments
+      const { data: roleData } = await supabase
+        .from("admin_role_assignments")
+        .select("id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (roleData) {
+        setUserSubmission({ portal_type: "secretariat", status: "Accepted" });
+        return;
+      }
+    }
+
     fetchPortalSettings();
+    checkUserSubmission();
 
     // Real-time subscription for portal status changes
     const subscription = supabase
@@ -158,6 +213,30 @@ export function Applications() {
           </p>
         </motion.div>
 
+        {/* User Submission Notice */}
+        {userSubmission && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 rounded-2xl border border-gold-primary/30 bg-gold-primary/10 p-5 text-center max-w-2xl mx-auto backdrop-blur-md"
+          >
+            <div className="inline-flex items-center gap-2 text-gold-primary font-semibold text-sm mb-1 uppercase tracking-wider">
+              <CheckCircle size={18} /> Application On Record
+            </div>
+            <p className="text-sm text-text-stardust/90">
+              You have already submitted an application for the{" "}
+              <strong className="capitalize text-gold-primary">
+                {userSubmission.portal_type}
+              </strong>{" "}
+              track (Status:{" "}
+              <span className="font-semibold text-emerald-400">
+                {userSubmission.status || "Submitted"}
+              </span>
+              ). Multiple applications across tracks are not permitted.
+            </p>
+          </motion.div>
+        )}
+
         {/* Application Tracks */}
         <motion.div
           variants={containerVariants}
@@ -170,13 +249,16 @@ export function Applications() {
             const config = trackConfig[type];
             const portal = getPortalByType(type);
             const IconComponent = config.icon;
+            const isUserAppliedTrack = userSubmission?.portal_type === type;
+            const hasAppliedOtherTrack =
+              userSubmission && userSubmission.portal_type !== type;
 
             return (
               <motion.div
                 key={type}
                 variants={cardVariants}
                 className={`card-cosmic p-5 sm:p-8 relative group ${
-                  portal?.is_active
+                  portal?.is_active && !hasAppliedOtherTrack
                     ? "hover:border-gold-primary/50"
                     : "opacity-80"
                 } transition-all duration-300`}
@@ -185,6 +267,11 @@ export function Applications() {
                 <div className="absolute top-4 right-4">
                   {isLoading ? (
                     <div className="w-20 h-6 bg-nebula-purple-1 animate-pulse rounded-full" />
+                  ) : isUserAppliedTrack ? (
+                    <span className="badge-active flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                      <CheckCircle size={14} />
+                      Submitted
+                    </span>
                   ) : portal?.is_active ? (
                     <span className="badge-active flex items-center gap-1.5">
                       <CheckCircle size={14} />
@@ -244,9 +331,21 @@ export function Applications() {
                   ))}
                 </ul>
 
-                {/* Apply Button or Closed Message */}
+                {/* Apply Button or Closed / Applied Message */}
                 {isLoading ? (
                   <div className="h-11 bg-nebula-purple-1 animate-pulse rounded-lg" />
+                ) : isUserAppliedTrack ? (
+                  <Link
+                    href={`/apply/${portal?.portal_type || type}`}
+                    className="w-full rounded-xl border border-gold-primary/40 bg-gold-primary/10 py-2.5 text-center text-sm font-medium text-gold-primary transition-all flex items-center justify-center gap-2 hover:bg-gold-primary/20"
+                  >
+                    View Submission Status
+                    <CheckCircle size={16} />
+                  </Link>
+                ) : hasAppliedOtherTrack ? (
+                  <div className="p-3 rounded-lg bg-nebula-purple-1/60 border border-border-cosmic-blue text-center text-xs text-text-stardust/50">
+                    Application Limit Reached
+                  </div>
                 ) : portal?.is_active ? (
                   <Link
                     href={`/apply/${portal.portal_type}`}
