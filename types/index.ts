@@ -30,6 +30,7 @@ export interface Committee {
   matrix_url: string | null;
   status: CommitteeStatus;
   is_active: boolean;
+  display_order: number;
   // Chair information
   chair_name: string | null;
   chair_photo_url: string | null;

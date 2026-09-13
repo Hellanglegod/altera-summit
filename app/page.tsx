@@ -1,5 +1,10 @@
 import { Header, Footer } from "@/components/layout";
 import { Hero } from "@/components/sections/Hero";
+import { About } from "@/components/sections/About";
+import { Committees } from "@/components/sections/Committees";
+import { Applications } from "@/components/sections/Applications";
+import { Secretariat } from "@/components/sections/Secretariat";
+import { Schedule } from "@/components/sections/Schedule";
 
 export default function Home() {
   return (
@@ -7,41 +12,16 @@ export default function Home() {
       <Header />
       <main className="flex-1">
         <Hero />
-        {/* Placeholder sections - to be built */}
-        <section id="about" className="section-padding bg-gradient-cosmic">
-          <div className="container-cosmic">
-            <h2 className="text-4xl font-display text-gold-primary">About</h2>
-            <p className="mt-4 text-text-stardust/80">Coming soon...</p>
-          </div>
-        </section>
 
-        <section id="committees" className="section-padding">
-          <div className="container-cosmic">
-            <h2 className="text-4xl font-display text-gold-primary">Committees</h2>
-            <p className="mt-4 text-text-stardust/80">Coming soon...</p>
-          </div>
-        </section>
+        <About />
 
-        <section id="applications" className="section-padding bg-gradient-cosmic">
-          <div className="container-cosmic">
-            <h2 className="text-4xl font-display text-gold-primary">Applications</h2>
-            <p className="mt-4 text-text-stardust/80">Coming soon...</p>
-          </div>
-        </section>
+        <Committees />
 
-        <section id="secretariat" className="section-padding">
-          <div className="container-cosmic">
-            <h2 className="text-4xl font-display text-gold-primary">Secretariat</h2>
-            <p className="mt-4 text-text-stardust/80">Coming soon...</p>
-          </div>
-        </section>
+        <Applications />
 
-        <section id="schedule" className="section-padding bg-gradient-cosmic">
-          <div className="container-cosmic">
-            <h2 className="text-4xl font-display text-gold-primary">Schedule</h2>
-            <p className="mt-4 text-text-stardust/80">Coming soon...</p>
-          </div>
-        </section>
+        <Secretariat />
+
+        <Schedule />
       </main>
       <Footer />
     </div>

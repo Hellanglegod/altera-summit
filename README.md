@@ -1,12 +1,13 @@
 # Altera Summit - MUN Web Platform
 
 > **Forging Destiny Among the Stars**
-> 
+>
 > An elite Model United Nations conference platform blending cosmology with classical antiquity.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 18+ and npm
 - Supabase account (free tier works great)
 - Git
@@ -18,11 +19,12 @@ cp .env.local.example .env.local
 ```
 
 Then fill in your Supabase credentials:
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-ADMIN_ROUTE=stellar-gateway-x7k2m9
+ADMIN_ROUTE=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
@@ -103,22 +105,23 @@ altera-summit/
 ## 🎨 Design System
 
 ### Color Palette (CSS Variables)
+
 ```css
---bg-void: #06080C              /* Primary background */
---nebula-purple-1: #130D2A      /* Section overlay */
---nebula-purple-2: #231847      /* Card backgrounds */
---gold-primary: #D4AF37         /* Headings & accents */
---bronze-accent: #9A7B38        /* Hover states */
---text-stardust: #E2E8F0        /* Body text */
---border-cosmic-blue: #1E293B   /* Borders */
+--bg-void: #06080c /* Primary background */ --nebula-purple-1: #130d2a
+  /* Section overlay */ --nebula-purple-2: #231847 /* Card backgrounds */
+  --gold-primary: #d4af37 /* Headings & accents */ --bronze-accent: #9a7b38
+  /* Hover states */ --text-stardust: #e2e8f0 /* Body text */
+  --border-cosmic-blue: #1e293b /* Borders */;
 ```
 
 ### Typography
+
 - **Display/Headings:** Cinzel Decorative (decorative, use sparingly)
 - **Secondary Headings:** Cormorant Garamond (elegant serif)
 - **Body/UI:** Inter (clean, modern sans-serif)
 
 ### Utility Classes
+
 - `.btn-primary` - Primary button
 - `.btn-secondary` - Secondary button
 - `.card-cosmic` - Card component
@@ -133,6 +136,7 @@ altera-summit/
 The admin portal is accessible at a **non-guessable route** (default: `/stellar-gateway-x7k2m9`).
 
 ### Features
+
 - 🔑 Authentication with Supabase Auth
 - 👥 Role-Based Access Control (Super Admin, Director of Registrations, Committee Director)
 - 🎚️ Master application toggle switches
@@ -179,6 +183,7 @@ All components are mobile-first and fully responsive.
 ## 🚢 Deployment to Vercel
 
 ### 1. Connect GitHub Repository
+
 ```bash
 git init
 git add .
@@ -187,6 +192,7 @@ git push -u origin main
 ```
 
 ### 2. Connect to Vercel
+
 1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
 2. Click "New Project"
 3. Import your GitHub repository
@@ -194,6 +200,7 @@ git push -u origin main
 5. Deploy!
 
 ### 3. Configure Custom Domain
+
 In Vercel project settings > Domains, add your custom domain.
 
 ---
@@ -201,6 +208,7 @@ In Vercel project settings > Domains, add your custom domain.
 ## 📊 Database Schema
 
 ### Key Tables
+
 - **portal_settings** - Application track configuration (ON/OFF, form mode)
 - **committees** - Committee info, chairs, agendas
 - **secretariat_members** - Team roster
@@ -210,6 +218,7 @@ In Vercel project settings > Domains, add your custom domain.
 - **schedule_items** - Conference schedule by day
 
 All tables have:
+
 - ✅ UUID primary keys
 - ✅ Row-Level Security (RLS) policies
 - ✅ Automatic `updated_at` triggers
@@ -240,19 +249,20 @@ npm run format
 
 ## 🔑 Environment Variables Reference
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | ✅ |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | ✅ |
-| `ADMIN_ROUTE` | Obfuscated admin portal route | ✅ |
-| `NEXT_PUBLIC_SITE_URL` | Site URL (for redirects) | ✅ |
+| Variable                        | Description                   | Required |
+| ------------------------------- | ----------------------------- | -------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL          | ✅       |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key        | ✅       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase service role key     | ✅       |
+| `ADMIN_ROUTE`                   | Obfuscated admin portal route | ✅       |
+| `NEXT_PUBLIC_SITE_URL`          | Site URL (for redirects)      | ✅       |
 
 ---
 
 ## 📚 Key Features Implemented
 
 ### Phase 1: Foundation ✅
+
 - [x] Design system with cosmic palette
 - [x] TypeScript types
 - [x] Supabase schema
@@ -261,6 +271,7 @@ npm run format
 - [x] Hero section with countdown timer
 
 ### Phase 2: Public Site (In Progress)
+
 - [ ] About section with video/poster
 - [ ] Committees hub with filterable grid
 - [ ] Applications hub (3-track system)
@@ -268,6 +279,7 @@ npm run format
 - [ ] Schedule & venue
 
 ### Phase 3: Admin Portal (Pending)
+
 - [ ] Authentication & authorization
 - [ ] Master toggle dashboard
 - [ ] Custom form builder
@@ -275,6 +287,7 @@ npm run format
 - [ ] CMS modules
 
 ### Phase 4: Testing & Launch (Pending)
+
 - [ ] Mobile responsiveness testing
 - [ ] Security audit
 - [ ] Performance optimization
@@ -285,6 +298,7 @@ npm run format
 ## 📞 Support & Questions
 
 For issues or questions:
+
 1. Check the documentation in `/docs`
 2. Review the database schema in `/supabase/schema.sql`
 3. Check Supabase documentation: https://supabase.com/docs
