@@ -83,13 +83,29 @@ export default function AdminFormsPage() {
   async function handleSaveForm() {
     if (!editingForm || !canEdit) return;
 
+    // Validate field labels and ensure file fields are not soft-locked as required
+    const hasEmptyLabels = editingForm.fields.some(
+      (f) => !f.label || f.label.trim().length === 0,
+    );
+    if (hasEmptyLabels) {
+      setStatusMessage({
+        type: "error",
+        text: "All form fields must have a valid label before saving.",
+      });
+      return;
+    }
+
+    const sanitizedFields = editingForm.fields.map((f) =>
+      f.type === "file" ? { ...f, required: false } : f,
+    );
+
     setIsSaving(true);
     try {
       const payload = {
         portal_type: editingForm.portal_type,
-        title: editingForm.title,
-        description: editingForm.description,
-        fields: editingForm.fields,
+        title: editingForm.title.trim() || "Application Form",
+        description: editingForm.description?.trim() || null,
+        fields: sanitizedFields,
         is_active: editingForm.is_active,
       };
 

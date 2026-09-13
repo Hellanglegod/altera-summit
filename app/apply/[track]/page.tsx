@@ -262,9 +262,7 @@ export default function ApplyPage() {
     form?.fields.forEach((field) => {
       const value = formData[field.id];
 
-      if (field.required && field.type === "file") {
-        newErrors[field.id] = "File uploads are not currently supported";
-      } else if (field.required && isEmptyFieldValue(value)) {
+      if (field.required && field.type !== "file" && isEmptyFieldValue(value)) {
         newErrors[field.id] = `${field.label} is required`;
       }
     });
@@ -292,6 +290,12 @@ export default function ApplyPage() {
     }
     if (!trimmedEmail || !authPassword) {
       setAuthError("Please enter both your email and password.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setAuthError("Please enter a valid email address.");
       return;
     }
 
@@ -477,14 +481,38 @@ export default function ApplyPage() {
         }
       }
 
+      // Enforce user email binding to prevent email impersonation
+      const finalEmail = (session?.user?.email || String(applicantEmail))
+        .trim()
+        .toLowerCase();
+
+      // Sanitize and trim all form input fields
+      const sanitizedFormData: Record<string, any> = {};
+      for (const [key, val] of Object.entries(formData)) {
+        if (typeof val === "string") {
+          sanitizedFormData[key] = val.trim().slice(0, 5000);
+        } else if (Array.isArray(val)) {
+          sanitizedFormData[key] = val.map((v) =>
+            typeof v === "string" ? v.trim().slice(0, 200) : v,
+          );
+        } else {
+          sanitizedFormData[key] = val;
+        }
+      }
+      if (emailField && session?.user?.email) {
+        sanitizedFormData[emailField.id] = session.user.email;
+      }
+
       const { error } = await supabase.from("form_submissions").insert({
         portal_type: track,
-        applicant_name: String(applicantName).trim(),
-        applicant_email: String(applicantEmail).trim(),
+        applicant_name: String(applicantName).trim().slice(0, 200),
+        applicant_email: finalEmail,
         applicant_phone: phoneField
-          ? String(formData[phoneField.id] || "").trim() || null
+          ? String(formData[phoneField.id] || "")
+              .trim()
+              .slice(0, 50) || null
           : null,
-        submission_data: formData,
+        submission_data: sanitizedFormData,
         status: "Submitted",
       });
 
@@ -518,6 +546,7 @@ export default function ApplyPage() {
   function renderField(field: FormField) {
     const value = formData[field.id] ?? "";
     const error = errors[field.id];
+    const isEmailField = field.label.toLowerCase().includes("email");
 
     const commonClasses = `input-cosmic w-full ${
       error ? "border-red-500/50" : ""
@@ -525,11 +554,24 @@ export default function ApplyPage() {
 
     switch (field.type) {
       case "text":
+        if (isEmailField && session?.user?.email) {
+          return (
+            <input
+              type="email"
+              id={field.id}
+              value={session.user.email}
+              readOnly
+              disabled
+              className={`${commonClasses} opacity-75 cursor-not-allowed bg-nebula-purple-1/50`}
+            />
+          );
+        }
         return (
           <input
             type="text"
             id={field.id}
             value={value}
+            maxLength={200}
             onChange={(e) =>
               setFormData({ ...formData, [field.id]: e.target.value })
             }
@@ -545,6 +587,7 @@ export default function ApplyPage() {
             id={field.id}
             rows={4}
             value={value}
+            maxLength={5000}
             onChange={(e) =>
               setFormData({ ...formData, [field.id]: e.target.value })
             }

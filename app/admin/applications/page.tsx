@@ -347,6 +347,14 @@ export default function ApplicationsPage() {
     }
   }
 
+  function sanitizeCSVField(val: string): string {
+    const str = String(val || "").replace(/"/g, '""');
+    if (/^[=+\-@\t\r]/.test(str)) {
+      return `"'${str}"`;
+    }
+    return `"${str}"`;
+  }
+
   function exportToCSV() {
     if (filteredSubmissions.length === 0) return;
 
@@ -362,14 +370,14 @@ export default function ApplicationsPage() {
     ];
 
     const rows = filteredSubmissions.map((s) => [
-      `"${s.id}"`,
-      `"${s.applicant_name.replace(/"/g, '""')}"`,
-      `"${s.applicant_email.replace(/"/g, '""')}"`,
-      `"${s.applicant_phone || ""}"`,
-      `"${s.portal_type}"`,
-      `"${s.status}"`,
-      `"${formatDate(s.created_at)}"`,
-      `"${(s.notes || "").replace(/"/g, '""')}"`,
+      sanitizeCSVField(s.id),
+      sanitizeCSVField(s.applicant_name),
+      sanitizeCSVField(s.applicant_email),
+      sanitizeCSVField(s.applicant_phone || ""),
+      sanitizeCSVField(s.portal_type),
+      sanitizeCSVField(s.status),
+      sanitizeCSVField(formatDate(s.created_at)),
+      sanitizeCSVField(s.notes || ""),
     ]);
 
     const csvContent = [

@@ -53,8 +53,7 @@ export default function SignInPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      const metadataRole =
-        session.user.app_metadata?.role || session.user.user_metadata?.role;
+      const metadataRole = session.user.app_metadata?.role;
       router.replace(
         (await hasAdminPermissions(session.user.id, metadataRole))
           ? "/admin/dashboard"
@@ -83,8 +82,7 @@ export default function SignInPage() {
       return;
     }
 
-    const metadataRole =
-      data.user?.app_metadata?.role || data.user?.user_metadata?.role;
+    const metadataRole = data.user?.app_metadata?.role;
     router.push(
       data.user && (await hasAdminPermissions(data.user.id, metadataRole))
         ? "/admin/dashboard"

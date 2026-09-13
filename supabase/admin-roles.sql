@@ -50,7 +50,6 @@ CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT COALESCE(
         auth.jwt() -> 'app_metadata' ->> 'role' = 'super_admin'
-        OR auth.jwt() -> 'user_metadata' ->> 'role' = 'super_admin'
         OR EXISTS (
             SELECT 1 FROM public.admin_role_assignments a
             JOIN public.admin_roles r ON r.id = a.role_id
@@ -81,10 +80,7 @@ AS $$
                 OR EXISTS (
                         SELECT 1
                         FROM public.admin_roles role_definition
-                        WHERE role_definition.name IN (
-                                auth.jwt() -> 'app_metadata' ->> 'role',
-                                auth.jwt() -> 'user_metadata' ->> 'role'
-                        )
+                        WHERE role_definition.name = (auth.jwt() -> 'app_metadata' ->> 'role')
                             AND (
                                 role_definition.permissions @> jsonb_build_array('*')
                                 OR role_definition.permissions @> jsonb_build_array(required_permission)
@@ -116,21 +112,16 @@ GRANT EXECUTE ON FUNCTION public.find_auth_user_id_by_email(TEXT) TO authenticat
 
 DROP POLICY IF EXISTS "Super admins manage role definitions" ON admin_roles;
 DROP POLICY IF EXISTS "Super admins manage non-founder role definitions" ON admin_roles;
-DROP POLICY IF EXISTS "Authenticated users can read role definitions" ON admin_roles;
-DROP POLICY IF EXISTS "Admins can read their assigned role" ON admin_role_assignments;
-DROP POLICY IF EXISTS "Super admins manage role assignments" ON admin_role_assignments;
-DROP POLICY IF EXISTS "Super admins manage non-founder assignments" ON admin_role_assignments;
-DROP POLICY IF EXISTS "Secretariat managers assign non-founder roles" ON admin_role_assignments;
-DROP POLICY IF EXISTS "Secretariat managers update non-founder roles" ON admin_role_assignments;
-DROP POLICY IF EXISTS "Admins can read action requests" ON admin_action_requests;
-DROP POLICY IF EXISTS "Admins can request actions" ON admin_action_requests;
-DROP POLICY IF EXISTS "Super admins review actions" ON admin_action_requests;
-
 CREATE POLICY "Super admins manage non-founder role definitions" ON admin_roles
     FOR ALL TO authenticated
     USING (is_super_admin() AND name <> 'super_admin')
     WITH CHECK (is_super_admin() AND name <> 'super_admin');
-CREATE POLICY "Authenticated users can read role definitions" ON admin_roles FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can read role definitions" ON admin_roles;
+CREATE POLICY "Authenticated users can read role definitions" ON admin_roles
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Admins can read their assigned role" ON admin_role_assignments;
 CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments
     FOR SELECT TO authenticated
     USING (
@@ -138,6 +129,9 @@ CREATE POLICY "Admins can read their assigned role" ON admin_role_assignments
         OR is_super_admin()
         OR admin_has_permission('secretariat.manage')
     );
+
+DROP POLICY IF EXISTS "Super admins manage role assignments" ON admin_role_assignments;
+DROP POLICY IF EXISTS "Super admins manage non-founder assignments" ON admin_role_assignments;
 CREATE POLICY "Super admins manage non-founder assignments" ON admin_role_assignments
     FOR ALL TO authenticated
     USING (
@@ -157,6 +151,7 @@ CREATE POLICY "Super admins manage non-founder assignments" ON admin_role_assign
         )
     );
 
+DROP POLICY IF EXISTS "Secretariat managers assign non-founder roles" ON admin_role_assignments;
 CREATE POLICY "Secretariat managers assign non-founder roles" ON admin_role_assignments
     FOR INSERT TO authenticated
     WITH CHECK (
@@ -168,6 +163,7 @@ CREATE POLICY "Secretariat managers assign non-founder roles" ON admin_role_assi
         )
     );
 
+DROP POLICY IF EXISTS "Secretariat managers update non-founder roles" ON admin_role_assignments;
 CREATE POLICY "Secretariat managers update non-founder roles" ON admin_role_assignments
     FOR UPDATE TO authenticated
     USING (
@@ -186,11 +182,19 @@ CREATE POLICY "Secretariat managers update non-founder roles" ON admin_role_assi
               AND founder_role.name = 'super_admin'
         )
     );
-CREATE POLICY "Admins can read action requests" ON admin_action_requests FOR SELECT TO authenticated USING (requested_by = auth.uid() OR is_super_admin());
+
+DROP POLICY IF EXISTS "Admins can read action requests" ON admin_action_requests;
+CREATE POLICY "Admins can read action requests" ON admin_action_requests
+    FOR SELECT TO authenticated USING (requested_by = auth.uid() OR is_super_admin());
+
+DROP POLICY IF EXISTS "Admins can request actions" ON admin_action_requests;
 CREATE POLICY "Admins can request actions" ON admin_action_requests
     FOR INSERT TO authenticated
     WITH CHECK (
         requested_by = auth.uid()
         AND admin_has_permission('secretariat.manage')
     );
-CREATE POLICY "Super admins review actions" ON admin_action_requests FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+DROP POLICY IF EXISTS "Super admins review actions" ON admin_action_requests;
+CREATE POLICY "Super admins review actions" ON admin_action_requests
+    FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());

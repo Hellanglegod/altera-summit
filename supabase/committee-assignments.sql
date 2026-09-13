@@ -22,7 +22,6 @@ SET search_path = public
 AS $$
   SELECT COALESCE(
     auth.jwt() -> 'app_metadata' ->> 'role' = required_role
-    OR auth.jwt() -> 'user_metadata' ->> 'role' = required_role
     OR EXISTS (
       SELECT 1
       FROM public.admin_role_assignments assignment
@@ -57,10 +56,7 @@ AS $$
     OR EXISTS (
       SELECT 1
       FROM public.admin_roles role_definition
-      WHERE role_definition.name IN (
-        auth.jwt() -> 'app_metadata' ->> 'role',
-        auth.jwt() -> 'user_metadata' ->> 'role'
-      )
+      WHERE role_definition.name = (auth.jwt() -> 'app_metadata' ->> 'role')
         AND (
           role_definition.permissions @> jsonb_build_array('*')
           OR role_definition.permissions @> jsonb_build_array(required_permission)

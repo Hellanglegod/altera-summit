@@ -132,13 +132,25 @@ export default function AdminSettingsPage() {
     setIsSaving(portal.id);
     setSaveStatus(null);
 
+    if (portal.form_mode !== "custom_builder" && portal.form_url?.trim()) {
+      const trimmedUrl = portal.form_url.trim();
+      if (!/^https?:\/\//i.test(trimmedUrl)) {
+        setSaveStatus({
+          type: "error",
+          message: "External form URL must start with http:// or https://",
+        });
+        setIsSaving(null);
+        return;
+      }
+    }
+
     try {
       const { error } = await supabase
         .from("portal_settings")
         .update({
           is_active: portal.is_active,
           form_mode: portal.form_mode,
-          form_url: portal.form_url,
+          form_url: portal.form_url?.trim() || null,
           closed_message: portal.closed_message,
           updated_at: new Date().toISOString(),
         })

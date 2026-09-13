@@ -183,15 +183,14 @@ ON CONFLICT (name) DO NOTHING;
 -- ROW LEVEL SECURITY POLICIES
 -- ============================================
 
--- Return all role claims so policies accept roles from either metadata object.
+-- Return app_metadata role claim so policies accept system roles securely.
 CREATE OR REPLACE FUNCTION public.jwt_role()
 RETURNS TEXT[]
 LANGUAGE SQL
 STABLE
 AS $$
     SELECT ARRAY_REMOVE(ARRAY[
-        auth.jwt() -> 'app_metadata' ->> 'role',
-        auth.jwt() -> 'user_metadata' ->> 'role'
+        auth.jwt() -> 'app_metadata' ->> 'role'
     ], NULL);
 $$;
 
@@ -211,7 +210,6 @@ CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT COALESCE(
         auth.jwt() -> 'app_metadata' ->> 'role' = 'super_admin'
-        OR auth.jwt() -> 'user_metadata' ->> 'role' = 'super_admin'
         OR EXISTS (
             SELECT 1 FROM public.admin_role_assignments a
             JOIN public.admin_roles r ON r.id = a.role_id
@@ -281,10 +279,11 @@ CREATE POLICY "Admins can manage secretariat" ON secretariat_members
     USING (jwt_role() && ARRAY['super_admin']::TEXT[])
     WITH CHECK (jwt_role() && ARRAY['super_admin']::TEXT[]);
 
--- Form Submissions - Public create, users read own, admins read/write
+-- Form Submissions - Authenticated create, users read own, admins read/write
 DROP POLICY IF EXISTS "Public can submit applications" ON form_submissions;
-CREATE POLICY "Public can submit applications" ON form_submissions
-    FOR INSERT TO anon, authenticated
+DROP POLICY IF EXISTS "Authenticated users can submit applications" ON form_submissions;
+CREATE POLICY "Authenticated users can submit applications" ON form_submissions
+    FOR INSERT TO authenticated
     WITH CHECK (status = 'Submitted');
 
 DROP POLICY IF EXISTS "Users can read own submissions" ON form_submissions;

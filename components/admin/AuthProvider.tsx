@@ -58,9 +58,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       const metadataRole =
-        (session?.user?.app_metadata?.role as AdminRole) ||
-        (session?.user?.user_metadata?.role as AdminRole) ||
-        null;
+        (session?.user?.app_metadata?.role as AdminRole) || null;
       let userRole = metadataRole;
       let userPermissions: string[] = [];
 

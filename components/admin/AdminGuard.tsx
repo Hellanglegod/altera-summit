@@ -10,7 +10,8 @@ import { AdminLayout as AdminLayoutComponent } from "@/components/admin/AdminLay
 import { Loader2 } from "lucide-react";
 
 function AdminGuardContent({ children }: { children: React.ReactNode }) {
-  const { session, role, isLoading, hasPermission } = useAdminAuth();
+  const { session, role, permissions, isLoading, hasPermission } =
+    useAdminAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -29,7 +30,18 @@ function AdminGuardContent({ children }: { children: React.ReactNode }) {
               ? "settings.manage"
               : null;
   const isAccessPage = pathname?.startsWith("/admin/access");
+
+  const hasAnyAdminAccess =
+    permissions.length > 0 ||
+    Boolean(
+      role &&
+      ["super_admin", "director_registrations", "committee_director"].includes(
+        role,
+      ),
+    );
+
   const canAccessPage =
+    hasAnyAdminAccess &&
     (!requiredPermission || hasPermission(requiredPermission)) &&
     (!isAccessPage ||
       hasPermission("roles.manage") ||
